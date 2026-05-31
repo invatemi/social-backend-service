@@ -1,0 +1,67 @@
+{
+  "version": 3,
+  "name": "Social Backend Gateway",
+  "port": 8080,
+  "timeout": "3000ms",
+  "endpoints": [
+    {
+      "endpoint": "/api/auth/health",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-auth-service:3001"],
+        "url_pattern": "/health"
+      }]
+    },
+    {
+      "endpoint": "/api/users/health",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/health"
+      }]
+    },
+    {
+      "endpoint": "/api/posts/health",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-post-service:3003"],
+        "url_pattern": "/health"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/health",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/health"
+      }]
+    },
+    {
+      "endpoint": "/api/notifications/health",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-notifications-service:3005"],
+        "url_pattern": "/health"
+      }]
+    }
+  ],
+  "extra_config": {
+    "auth/validator": {
+      "alg": "HS256",
+      "key": "${JWT_SECRET}",
+      "roles_key": "role",
+      "roles": {
+        "/api/auth/": ["admin", "moderator", "user", "guest"],
+        "/api/users/": ["admin", "moderator", "user"],
+        "/api/posts/": ["admin", "moderator", "user"],
+        "/api/messages/": ["admin", "moderator", "user"],
+        "/api/notifications/": ["admin", "moderator", "user"]
+      }
+    }
+  }
+}
