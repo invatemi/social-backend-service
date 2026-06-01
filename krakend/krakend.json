@@ -14,6 +14,46 @@
       }]
     },
     {
+      "endpoint": "/api/auth/register",
+      "method": "POST",
+      "public": true,
+      "input_headers": ["Content-Type"],
+      "backend": [{
+        "host": ["http://social-auth-service:3001"],
+        "url_pattern": "/register"
+      }]
+    },
+    {
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "public": true,
+      "input_headers": ["Content-Type"],
+      "backend": [{
+        "host": ["http://social-auth-service:3001"],
+        "url_pattern": "/login"
+      }]
+    },
+    {
+      "endpoint": "/api/auth/refresh",
+      "method": "POST",
+      "public": true,
+      "input_headers": ["Content-Type"],
+      "backend": [{
+        "host": ["http://social-auth-service:3001"],
+        "url_pattern": "/refresh"
+      }]
+    },
+    {
+      "endpoint": "/api/auth/logout",
+      "method": "POST",
+      "public": true,
+      "input_headers": ["Content-Type"],
+      "backend": [{
+        "host": ["http://social-auth-service:3001"],
+        "url_pattern": "/logout"
+      }]
+    },
+    {
       "endpoint": "/api/users/health",
       "method": "GET",
       "public": true,

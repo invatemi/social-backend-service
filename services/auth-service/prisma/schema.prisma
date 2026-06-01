@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Role {
+  id    Int           @id
+  name  String        @unique
+  users AuthAccount[]
+
+  @@map("roles")
+}
+
+model AuthAccount {
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  passwordHash  String         @map("password_hash")
+  name          String
+  roleId        Int            @map("role_id")
+  role          Role           @relation(fields: [roleId], references: [id])
+  createdAt     DateTime       @default(now()) @map("created_at")
+  refreshTokens RefreshToken[]
+
+  @@map("auth_accounts")
+}
+
+model RefreshToken {
+  id            Int           @id @default(autoincrement())
+  token         String        @unique
+  expiresAt     DateTime      @map("expires_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  userId        Int           @map("user_id")
+  authAccount   AuthAccount   @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
+}
+
+model UserTokens {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  tokenHash  String   @map("token_hash")
+  tokenType  String   @map("token_type")
+  expiresAt  DateTime @map("expires_at")
+  isRevoked  Boolean  @map("is_revoked")
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastUsedAt DateTime @map("last_used_at")
+
+  @@unique([userId, tokenType])
+  @@map("user_tokens")
+}
+
+model VerificationCodes {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  codeHash  String   @map("code_hash")
+  purpose   String   @map("purpose")
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @map("is_used")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, purpose])
+  @@map("verification_codes")
+}

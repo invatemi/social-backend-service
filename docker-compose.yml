@@ -33,6 +33,7 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${AUTH_DB_HOST}:5432/${AUTH_DB_NAME}?schema=public"
     depends_on: [auth-db]
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3001/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
@@ -56,6 +57,7 @@ services:
       DB_NAME: ${USER_DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD:  ${DB_PASSWORD}
+      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${USER_DB_HOST}:5432/${USER_DB_NAME}?schema=public"
     depends_on: [user-db]
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3002/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
@@ -79,6 +81,7 @@ services:
       DB_NAME: ${POST_DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD:  ${DB_PASSWORD}
+      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${POST_DB_HOST}:5432/${POST_DB_NAME}?schema=public"
     depends_on: [post-db]
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3003/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
@@ -102,6 +105,7 @@ services:
       DB_NAME: ${MSG_DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${MSG_DB_HOST}:5432/${MSG_DB_NAME}?schema=public"
     depends_on: [msg-db]
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3004/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
@@ -125,6 +129,7 @@ services:
       DB_NAME: ${NOTIF_DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${NOTIF_DB_HOST}:5432/${NOTIF_DB_NAME}?schema=public"
     depends_on: [notif-db]
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3005/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
