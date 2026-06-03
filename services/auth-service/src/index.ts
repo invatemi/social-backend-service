@@ -4,6 +4,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import authRoutes from './routes/endpoints';
 import { errorHandler } from './lib/error-handler';
+import { requestLogger } from './middleware/request-logger';
+import { jsonErrorHandler } from './middleware/json-error-handler';
 
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
@@ -20,6 +22,8 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 app.use(express.json());
+app.use(jsonErrorHandler);
+app.use(requestLogger);
 
 app.use('/api/auth', (req, res, next) => {
   (req as any).prisma = prisma;
@@ -28,7 +32,6 @@ app.use('/api/auth', (req, res, next) => {
 
 app.use(errorHandler);
 
-// Health check
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -52,7 +55,6 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Service running on port ${PORT}`);
 });
 
-// Graceful shutdown
 const shutdown = async (signal: string) => {
   console.log(`${signal} received`);
   server.close(async () => {

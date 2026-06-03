@@ -251,8 +251,16 @@ export class AuthService {
       throw new ValidationError('Refresh token is required', 'refreshToken');
     }
 
-    await this.prisma.refreshToken.delete({
-      where: { token: refreshToken }
-    });
+    try {
+      await this.prisma.refreshToken.delete({
+        where: { token: refreshToken }
+      });
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        console.warn('Refresh token not found, skipping deletion');
+        return;
+      }
+      throw error;
+    }
   }
 }

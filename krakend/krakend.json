@@ -2,7 +2,7 @@
   "version": 3,
   "name": "Social Backend Gateway",
   "port": 8080,
-  "timeout": "3000ms",
+  "timeout": "10000ms",
   "endpoints": [
     {
       "endpoint": "/api/auth/health",
@@ -17,40 +17,44 @@
       "endpoint": "/api/auth/register",
       "method": "POST",
       "public": true,
-      "input_headers": ["Content-Type"],
+      "input_headers": ["*"],
       "backend": [{
         "host": ["http://social-auth-service:3001"],
-        "url_pattern": "/register"
+        "url_pattern": "/api/auth/register"
+        
       }]
     },
     {
       "endpoint": "/api/auth/login",
       "method": "POST",
       "public": true,
-      "input_headers": ["Content-Type"],
+      "input_headers": ["*"],
       "backend": [{
         "host": ["http://social-auth-service:3001"],
-        "url_pattern": "/login"
+        "url_pattern": "/api/auth/login"
+        
       }]
     },
     {
       "endpoint": "/api/auth/refresh",
       "method": "POST",
       "public": true,
-      "input_headers": ["Content-Type"],
+      "input_headers": ["*"],
       "backend": [{
         "host": ["http://social-auth-service:3001"],
-        "url_pattern": "/refresh"
+        "url_pattern": "/api/auth/refresh"
+        
       }]
     },
     {
       "endpoint": "/api/auth/logout",
       "method": "POST",
       "public": true,
-      "input_headers": ["Content-Type"],
+      "input_headers": ["*"],
       "backend": [{
         "host": ["http://social-auth-service:3001"],
-        "url_pattern": "/logout"
+        "url_pattern": "/api/auth/logout"
+        
       }]
     },
     {
