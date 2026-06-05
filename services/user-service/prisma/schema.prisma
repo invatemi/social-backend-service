@@ -1,13 +1,86 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id        Int      @id @default(autoincrement()) @map("id_user")
+  name      String   @db.VarChar(30) @map("name_user")
+  email     String   @unique @db.VarChar(100)
+  avatarUrl String?  @map("avatar_url")
+  bio       String?
+  location  String?  @db.VarChar(100)
+  roleId    Int      @default(3) @map("role_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  role              Role              @relation(fields: [roleId], references: [id])
+  followers         Follow[]          @relation("following")
+  following         Follow[]          @relation("follower")
+  sentRequests      FriendRequest[]   @relation("from")
+  receivedRequests  FriendRequest[]   @relation("to")
+  friendships       Friendship[]      @relation("user")
+  friendshipsOf     Friendship[]      @relation("friend")
+
+  @@index([email], map: "idx_users_email")
+  @@index([roleId], map: "idx_users_role")
+  @@map("users")
+}
+
+model Follow {
+  id          Int      @id @default(autoincrement())
+  followerId  Int      @map("follower_id")
+  followingId Int      @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId], map: "uq_follow")
+  @@index([followerId], map: "idx_followers_follower")
+  @@index([followingId], map: "idx_followers_following")
+  @@map("followers")
+}
+
+model FriendRequest {
+  id         Int      @id @default(autoincrement())
+  fromUserId Int      @map("from_user_id")
+  toUserId   Int      @map("to_user_id")
+  status     String   @default("pending") @db.VarChar(20)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  from User @relation("from", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to   User @relation("to", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId], map: "uq_friend_request")
+  @@index([fromUserId], map: "idx_friend_requests_from")
+  @@index([toUserId, status], map: "idx_friend_requests_pending")
+  @@index([toUserId], map: "idx_friend_requests_to")
+  @@map("friend_requests")
+}
+
+model Friendship {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  friendId  Int      @map("friend_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User @relation("user", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("friend", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId], map: "uq_friendship")
+  @@index([userId], map: "idx_friendships_user")
+  @@map("friendships")
+}
+
+model Role {
+  id    Int    @id
+  name  String @unique @db.VarChar(30)
+  users User[]
+  @@map("roles")
 }

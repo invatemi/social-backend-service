@@ -67,6 +67,123 @@
       }]
     },
     {
+      "endpoint": "/api/users/me/followers",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/followers/me/followers"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me/following",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/followers/me/following"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me/is-following/{id}",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/followers/me/is-following/{id}"
+      }]
+    },
+    {
+      "endpoint": "/api/users/{id}/followers",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/followers/{id}/followers"
+      }]
+    },
+    {
+      "endpoint": "/api/users/{id}/following",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/followers/{id}/following"
+      }]
+    },
+    {
+      "endpoint": "/api/users/{id}/counts",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/followers/{id}/counts"
+      }]
+    },
+    {
+      "endpoint": "/api/users/{id}/follow",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/followers/{id}/follow"
+      }]
+    },
+    {
+      "endpoint": "/api/users/{id}/follow",
+      "method": "DELETE",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/followers/{id}/follow"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me/friends",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/friends/me"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me/friends/{id}",
+      "method": "DELETE",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/friends/{id}"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me/is-friends/{id}",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/friends/me/is-friends/{id}"
+      }]
+    },
+    {
+      "endpoint": "/api/users/{id}/friends",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/friends/{id}"
+      }]
+    },
+    {
+      "endpoint": "/api/users/{id}/friends/count",
+      "method": "GET",
+      "public": true,
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/friends/{id}/count"
+      }]
+    },
+    {
       "endpoint": "/api/posts/health",
       "method": "GET",
       "public": true,
@@ -99,6 +216,12 @@
       "alg": "HS256",
       "key": "${JWT_SECRET}",
       "roles_key": "role",
+
+      "propagate_claims": [
+        ["userId", "X-User-Id"],
+        ["role", "X-User-Role"]
+      ],
+
       "roles": {
         "/api/auth/": ["admin", "moderator", "user", "guest"],
         "/api/users/": ["admin", "moderator", "user"],

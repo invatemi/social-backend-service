@@ -1,51 +1,76 @@
 import express from 'express';
+import { PrismaClient } from './generated/prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import followersRoutes from './routes/followers/endpoints';
+import friendsRoutes from './routes/friends/endpoints';
+import { errorHandler } from './middleware/error-handler';
+import { requestLogger } from './middleware/request-logger';
+import { jsonErrorHandler } from './middleware/json-error-handler';
 
-const app = express();
 
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'ok', 
-    service: process.env.npm_package_name || 'unknown',
-    port: process.env.PORT 
-  });
-});
-
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-});
-
-async function connectWithRetry(maxAttempts = 10, delayMs = 2000) {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      await pool.connect();
-      console.log('✓ Connected to database');
-      return true;
-    } catch (err : any) {
-      console.warn(`⚠ DB connection attempt ${attempt}/${maxAttempts} failed:`, err.message);
-      if (attempt === maxAttempts) {
-        console.error('✗ Failed to connect to database after all attempts');
-        return false;
-      }
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-    }
-  }
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
 }
 
-connectWithRetry();
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-app.get('/api/users', async (req, res) => {
+
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
+
+const app = express();
+const PORT = parseInt(process.env.PORT || '3002', 10);
+
+app.use(express.json());
+app.use(jsonErrorHandler);
+app.use(requestLogger);
+
+app.use('/api/followers', (req, res, next) => {
+  (req as any).prisma = prisma;
+  next();
+}, followersRoutes);
+
+app.use('/api/friends', (req, res, next) => {
+  (req as any).prisma = prisma;
+  next();
+}, friendsRoutes);
+
+app.use(errorHandler);
+
+app.get('/health', async (_req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM users');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(503).json({ error: 'Database unavailable' });
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({
+      status: 'ok',
+      service: 'social-user-service',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+    });
+  } catch {
+    res.status(503).json({
+      status: 'degraded',
+      service: 'social-user-service',
+      database: 'disconnected',
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 
-const PORT = parseInt(process.env.PORT || '3001', 10);
-app.listen(PORT, '0.0.0.0', () => console.log(`Running on port ${PORT}`));
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Service running on port ${PORT}`);
+});
+
+const shutdown = async (signal: string) => {
+  console.log(`${signal} received`);
+  server.close(async () => {
+    await prisma.$disconnect();
+    await pool.end();
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

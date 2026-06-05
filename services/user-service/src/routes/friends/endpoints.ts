@@ -1,0 +1,122 @@
+import { Router, Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '../../generated/prisma/client';
+import { FriendsService } from './friends.service';
+import { KrakenDRequest, krakendAuthMiddleware } from '../../middleware/krakend-auth'; 
+
+const router = Router();
+
+// ==================== ЗАЩИЩЁННЫЕ ЭНДПОИНТЫ ====================
+
+// Мои друзья
+router.get(
+  '/me',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const userId = req.user!.userId;
+      const result = await friendsService.getFriends(userId);
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Удалить из друзей
+router.delete(
+  '/:id',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const initiatorId = req.user!.userId;
+      const targetId = parseInt(String(req.params.id), 10);
+
+      const result = await friendsService.removeFriend(initiatorId, targetId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Friend removed and moved to following',
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Проверить, являются ли пользователи друзьями
+router.get(
+  '/me/is-friends/:id',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const userId1 = req.user!.userId;
+      const userId2 = parseInt(String(req.params.id), 10);
+
+      const areFriends = await friendsService.areFriends(userId1, userId2);
+
+      res.status(200).json({
+        success: true,
+        areFriends,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ==================== ПУБЛИЧНЫЕ ЭНДПОИНТЫ ====================
+
+// Получить друзей пользователя по id
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const prisma = (req as any).prisma as PrismaClient;
+    const friendsService = new FriendsService(prisma);
+
+    const userId = parseInt(String(req.params.id), 10);
+    const result = await friendsService.getFriends(userId);
+
+    res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Количество друзей пользователя
+router.get(
+  '/:id/count',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const userId = parseInt(String(req.params.id), 10);
+      const result = await friendsService.getFriendsCount(userId);
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+export default router;

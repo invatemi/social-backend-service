@@ -3,7 +3,7 @@ import { PrismaClient } from './generated/prisma';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import authRoutes from './routes/endpoints';
-import { errorHandler } from './lib/error-handler';
+import { errorHandler } from './middleware/error-handler';
 import { requestLogger } from './middleware/request-logger';
 import { jsonErrorHandler } from './middleware/json-error-handler';
 
