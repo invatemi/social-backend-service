@@ -7,7 +7,7 @@ services:
     volumes:
       - ./krakend/krakend.json:/etc/krakend/krakend.json:ro
     environment:
-      - JWT_SECRET=${JWT_SECRET} 
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       social-auth-service: { condition: service_healthy }
       social-user-service: { condition: service_healthy }
@@ -17,11 +17,35 @@ services:
     networks: [social-net]
     restart: unless-stopped
 
+  # ==================== MESSAGE BROKER ====================
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_PORT:-15672}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [social-net]
+    restart: unless-stopped
+
   # ==================== SERVICES ====================
   social-auth-service:
-    build: 
+    build:
       context: ./services/auth-service
-      args: 
+      args:
         SERVICE_PORT: ${AUTH_PORT}
     container_name: social-auth
     ports: ["3001:3001"]
@@ -34,7 +58,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${AUTH_DB_HOST}:5432/${AUTH_DB_NAME}?schema=public"
-    depends_on: [auth-db]
+    depends_on:
+      auth-db: { condition: service_started }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3001/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
       interval: 10s
@@ -44,21 +69,22 @@ services:
     networks: [social-net]
 
   social-user-service:
-    build: 
+    build:
       context: ./services/user-service
-      args: 
+      args:
         SERVICE_PORT: ${USER_PORT}
     container_name: social-user
     ports: ["3002:3002"]
     environment:
-      PORT:  ${USER_PORT}
+      PORT: ${USER_PORT}
       DB_HOST: ${USER_DB_HOST}
       DB_PORT: 5432
       DB_NAME: ${USER_DB_NAME}
       DB_USER: ${DB_USER}
-      DB_PASSWORD:  ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${USER_DB_HOST}:5432/${USER_DB_NAME}?schema=public"
-    depends_on: [user-db]
+    depends_on:
+      user-db: { condition: service_started }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3002/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
       interval: 10s
@@ -68,9 +94,9 @@ services:
     networks: [social-net]
 
   social-post-service:
-    build: 
+    build:
       context: ./services/post-service
-      args: 
+      args:
         SERVICE_PORT: ${POST_PORT}
     container_name: social-post
     ports: ["3003:3003"]
@@ -80,9 +106,12 @@ services:
       DB_PORT: 5432
       DB_NAME: ${POST_DB_NAME}
       DB_USER: ${DB_USER}
-      DB_PASSWORD:  ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${POST_DB_HOST}:5432/${POST_DB_NAME}?schema=public"
-    depends_on: [post-db]
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672"
+    depends_on:
+      post-db: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3003/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
       interval: 10s
@@ -92,10 +121,10 @@ services:
     networks: [social-net]
 
   social-message-service:
-    build: 
+    build:
       context: ./services/message-service
-      args: 
-        SERVICE_PORT:  ${MSG_PORT}
+      args:
+        SERVICE_PORT: ${MSG_PORT}
     container_name: social-message
     ports: ["3004:3004"]
     environment:
@@ -106,7 +135,8 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${MSG_DB_HOST}:5432/${MSG_DB_NAME}?schema=public"
-    depends_on: [msg-db]
+    depends_on:
+      msg-db: { condition: service_started }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3004/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
       interval: 10s
@@ -116,9 +146,9 @@ services:
     networks: [social-net]
 
   social-notifications-service:
-    build: 
+    build:
       context: ./services/notifications-service
-      args: 
+      args:
         SERVICE_PORT: ${NOTIF_PORT}
     container_name: social-notifications
     ports: ["3005:3005"]
@@ -130,7 +160,10 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${NOTIF_DB_HOST}:5432/${NOTIF_DB_NAME}?schema=public"
-    depends_on: [notif-db]
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672"
+    depends_on:
+      notif-db: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3005/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
       interval: 10s
@@ -196,6 +229,7 @@ volumes:
   post-data:
   msg-data:
   notif-data:
+  rabbitmq-data:
 
 networks:
   social-net:

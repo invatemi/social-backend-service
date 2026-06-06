@@ -1,0 +1,90 @@
+{
+  "rabbit_version": "3.12.0",
+  "users": [
+    {
+      "name": "admin",
+      "password": "admin123",
+      "tags": "administrator"
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "admin",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "post.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "notifications.comment.created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.comment.updated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.comment.deleted",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "source": "post.events",
+      "vhost": "/",
+      "destination": "notifications.comment.created",
+      "destination_type": "queue",
+      "routing_key": "comment.created",
+      "arguments": {}
+    },
+    {
+      "source": "post.events",
+      "vhost": "/",
+      "destination": "notifications.comment.updated",
+      "destination_type": "queue",
+      "routing_key": "comment.updated",
+      "arguments": {}
+    },
+    {
+      "source": "post.events",
+      "vhost": "/",
+      "destination": "notifications.comment.deleted",
+      "destination_type": "queue",
+      "routing_key": "comment.deleted",
+      "arguments": {}
+    }
+  ]
+}
