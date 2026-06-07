@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 
+/** Parses a raw JSON body when no JSON middleware body exists. */
 export const rawBodyParser = (req: Request, res: Response, next: NextFunction) => {
   if (req.method === 'GET') {
     return next();
@@ -18,9 +19,9 @@ export const rawBodyParser = (req: Request, res: Response, next: NextFunction) =
     if (rawData) {
       try {
         req.body = JSON.parse(rawData);
-        console.log('[Raw Body Parser] Parsed body:', req.body);
+        console.log('[Raw Body Parser] Parsed body');
       } catch (error) {
-        console.error('[Raw Body Parser] Failed to parse JSON:', rawData);
+        console.error('[Raw Body Parser] Failed to parse JSON');
         req.body = {};
       }
     }

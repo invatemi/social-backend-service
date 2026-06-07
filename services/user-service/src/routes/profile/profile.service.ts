@@ -27,6 +27,7 @@ const validateUserId = (userId: unknown): number => {
 export class ProfileService {
   constructor(private prisma: PrismaClient) {}
 
+  /** Updates profile fields and publishes a user.updated event. */
   async updateProfile(userId: number, input: UpdateProfileInput) {
     const id = validateUserId(userId);
     const changedFields = Object.keys(input).filter(

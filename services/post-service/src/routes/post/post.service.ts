@@ -51,6 +51,26 @@ export interface PaginationOptions {
   onlyPublished?: boolean;
 }
 
+type DbPost = {
+  id_post: number;
+  id_user: number;
+  title: string | null;
+  content: string;
+  image_url: string | null;
+  is_published: boolean;
+  likes_count: number;
+  comments_count: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type PostUpdateFields = {
+  updated_at: Date;
+  title?: string;
+  content?: string;
+  image_url?: string;
+};
+
 const POST_CACHE_TTL_SECONDS = Number(process.env.POST_CACHE_TTL_SECONDS ?? 300);
 const POST_LIST_CACHE_TTL_SECONDS = Number(process.env.POST_LIST_CACHE_TTL_SECONDS ?? 60);
 
@@ -166,7 +186,7 @@ const validateImageUrl = (imageUrl: unknown): string | undefined => {
 export class PostService {
   constructor(private prisma: PrismaClient) {}
 
-  // ==================== CREATE POST ====================
+  /** Creates a post and publishes a post.created event. */
   async createPost(data: CreatePostData): Promise<PostResponse> {
     const userId = validateId(data.userId, 'userId');
     const title = validateTitle(data.title);
@@ -194,7 +214,7 @@ export class PostService {
     return createdPost;
   }
 
-  // ==================== GET ALL POSTS (FEED) ====================
+  /** Returns paginated posts for the public feed. */
   async getAllPosts(options: PaginationOptions = {}): Promise<PostsListResponse> {
     const page = options.page ?? 1;
     const pageSize = options.pageSize ?? 10;
@@ -237,7 +257,7 @@ export class PostService {
     return result;
   }
 
-  // ==================== GET POSTS BY USER ====================
+  /** Returns paginated posts for a user. */
   async getPostsByUser(
     userId: number,
     options: PaginationOptions = {}
@@ -287,7 +307,7 @@ export class PostService {
     return result;
   }
 
-  // ==================== GET POST BY ID ====================
+  /** Returns a post by id. */
   async getPostById(postId: number): Promise<PostResponse> {
     const validPostId = validateId(postId, 'postId');
     const cacheKey = postCacheKeys.byId(validPostId);
@@ -309,7 +329,7 @@ export class PostService {
     return result;
   }
 
-  // ==================== UPDATE POST ====================
+  /** Updates an owned post and publishes a post.updated event. */
   async updatePost(
     postId: number,
     userId: number,
@@ -330,7 +350,7 @@ export class PostService {
       throw new PostForbiddenError('You can only edit your own posts');
     }
 
-    const updateData: any = {
+    const updateData: PostUpdateFields = {
       updated_at: new Date(),
     };
 
@@ -361,7 +381,7 @@ export class PostService {
     return formattedPost;
   }
 
-  // ==================== DELETE POST ====================
+  /** Deletes an owned post and publishes a post.deleted event. */
   async deletePost(postId: number, userId: number): Promise<void> {
     const validPostId = validateId(postId, 'postId');
     const validUserId = validateId(userId, 'userId');
@@ -391,7 +411,7 @@ export class PostService {
     ]);
   }
 
-  // ==================== PUBLISH POST ====================
+  /** Publishes an owned draft post. */
   async publishPost(postId: number, userId: number): Promise<PostResponse> {
     const validPostId = validateId(postId, 'postId');
     const validUserId = validateId(userId, 'userId');
@@ -425,11 +445,12 @@ export class PostService {
       cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, POST_CACHE_TTL_SECONDS),
       invalidatePostLists(formattedPost.userId),
     ]);
+    await publishPostEvent('post.updated', formattedPost);
 
     return formattedPost;
   }
 
-  // ==================== UNPUBLISH POST (MAKE DRAFT) ====================
+  /** Moves an owned published post back to draft. */
   async unpublishPost(postId: number, userId: number): Promise<PostResponse> {
     const validPostId = validateId(postId, 'postId');
     const validUserId = validateId(userId, 'userId');
@@ -463,11 +484,12 @@ export class PostService {
       cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, POST_CACHE_TTL_SECONDS),
       invalidatePostLists(formattedPost.userId),
     ]);
+    await publishPostEvent('post.updated', formattedPost);
 
     return formattedPost;
   }
 
-  // ==================== GET MY POSTS (INCLUDING DRAFTS) ====================
+  /** Returns paginated posts owned by a user, including drafts. */
   async getMyPosts(
     userId: number,
     options: PaginationOptions = {}
@@ -513,8 +535,8 @@ export class PostService {
     return result;
   }
 
-  // ==================== FORMAT POST ====================
-  private formatPost(post: any): PostResponse {
+  /** Maps a database post row to the API response shape. */
+  private formatPost(post: DbPost): PostResponse {
     return {
       id: post.id_post,
       userId: post.id_user,

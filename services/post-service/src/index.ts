@@ -69,6 +69,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Service running on port ${PORT}`);
 });
 
+/** Gracefully closes HTTP, cache, broker, and database resources. */
 const shutdown = async (signal: string) => {
   console.log(`${signal} received`);
   server.close(async () => {

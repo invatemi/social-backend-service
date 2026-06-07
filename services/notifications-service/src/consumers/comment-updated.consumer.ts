@@ -11,17 +11,25 @@ const commentUpdatedEventSchema = z.object({
   timestamp: z.string().datetime(),
 });
 
+/** Registers the comment.updated notification consumer. */
 export const registerCommentUpdatedConsumer = async (): Promise<void> => {
-  await eventBus.subscribe(QUEUE_NAME, async (message, { ack, nack }) => {
-    try {
-      const payload = JSON.parse(message.content.toString('utf8')) as unknown;
-      const event = commentUpdatedEventSchema.parse(payload);
+  await eventBus.subscribe(
+    QUEUE_NAME,
+    async (message, { ack, nack }) => {
+      try {
+        const payload = JSON.parse(message.content.toString('utf8')) as unknown;
+        const event = commentUpdatedEventSchema.parse(payload);
 
-      console.log('[Consumer:comment.updated] Received:', event);
-      ack();
-    } catch (error) {
-      console.log('[Consumer:comment.updated] Failed to process message:', error);
-      nack(false);
+        console.log('[Consumer:comment.updated] Received:', event);
+        ack();
+      } catch (error) {
+        console.log('[Consumer:comment.updated] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'post.events',
+      routingKey: 'comment.updated',
     }
-  });
+  );
 };

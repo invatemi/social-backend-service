@@ -83,7 +83,7 @@ const validatePassword = (password: string): string => {
 export class AuthService {
   constructor(private prisma: PrismaClient) {}
 
-  // ==================== ACCESS TOKEN ====================
+  /** Creates a signed access token for an authenticated user. */
   generateAccessToken(userId: number, email: string, role: string): string {
     return jwt.sign(
       { userId, email, role }, 
@@ -92,7 +92,7 @@ export class AuthService {
     );
   }
 
-  // ==================== REFRESH TOKEN ====================
+  /** Creates and stores a refresh token for a user. */
   async generateRefreshToken(userId: number): Promise<string> {
     const token = crypto.randomBytes(48).toString('hex');
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
@@ -108,7 +108,7 @@ export class AuthService {
     return token;
   }
 
-  // ==================== REGISTRATION ====================
+  /** Registers a user and returns public user data with tokens. */
   async registerUser(data: UserRegistrationData): Promise<RegistrationResponse> {
     const name = validateString(data.name, 'name', 2);
     const email = validateEmail(data.email);
@@ -159,7 +159,7 @@ export class AuthService {
     };
   }
 
-  // ==================== LOGIN ====================
+  /** Authenticates credentials and returns public user data with tokens. */
   async login(data: UserLoginData): Promise<LoginResponse> {
     const email = validateEmail(data.email);
     const password = validatePassword(data.password);
@@ -198,7 +198,7 @@ export class AuthService {
     };
   }
 
-  // ==================== REFRESH FLOW ====================
+  /** Rotates a valid refresh token and returns fresh tokens. */
   async refreshAccessToken(refreshToken: string): Promise<AuthTokens> {
     if (!refreshToken || typeof refreshToken !== 'string' || refreshToken.length !== 96) {
       throw new InvalidRefreshTokenError('Invalid refresh token format');
@@ -245,7 +245,7 @@ export class AuthService {
     };
   }
 
-  // ==================== LOGOUT ====================
+  /** Deletes a refresh token if it exists. */
   async logout(refreshToken: string): Promise<void> {
     if (!refreshToken || typeof refreshToken !== 'string') {
       throw new ValidationError('Refresh token is required', 'refreshToken');

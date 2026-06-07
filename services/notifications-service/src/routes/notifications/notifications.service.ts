@@ -23,6 +23,7 @@ const validateUserId = (userId: unknown): number => {
 export class NotificationsService {
   constructor(private prisma: PrismaClient) {}
 
+  /** Creates a notification and pushes it to active SSE clients. */
   async createNotification(input: CreateNotificationInput) {
     const notification = await this.prisma.notification.create({
       data: input,
@@ -33,6 +34,7 @@ export class NotificationsService {
     return notification;
   }
 
+  /** Returns recent notifications for a user. */
   async listUserNotifications(userId: number, unreadOnly = false) {
     const recipientUserId = validateUserId(userId);
 
@@ -46,6 +48,7 @@ export class NotificationsService {
     });
   }
 
+  /** Marks one notification as read for a user. */
   async markAsRead(userId: number, notificationId: number) {
     const recipientUserId = validateUserId(userId);
     const id = validateUserId(notificationId);
@@ -62,6 +65,7 @@ export class NotificationsService {
     });
   }
 
+  /** Marks all notifications as read for a user. */
   async markAllAsRead(userId: number) {
     const recipientUserId = validateUserId(userId);
 

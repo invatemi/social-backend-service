@@ -13,6 +13,7 @@ const postDeletedEventSchema = z.object({
   timestamp: z.string().datetime(),
 });
 
+/** Registers the post.deleted notification consumer. */
 export const registerPostDeletedConsumer = async (): Promise<void> => {
   await eventBus.subscribe(
     QUEUE_NAME,

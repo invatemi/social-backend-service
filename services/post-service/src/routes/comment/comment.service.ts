@@ -61,8 +61,7 @@ const validateContent = (content: unknown): string => {
   return trimmed;
 };
 
-// ==================== FORMATTER ====================
-// Преобразуем snake_case поля из БД в camelCase для API
+// Преобразует snake_case поля из БД в camelCase для API.
 const formatComment = (comment: any): CommentResponse => ({
   id: comment.id_comment,
   postId: comment.id_post,
@@ -92,7 +91,7 @@ const publishCommentEvent = async (
 export class CommentService {
   constructor(private prisma: PrismaClient) {}
 
-  // ==================== CREATE COMMENT ====================
+  /** Creates a comment and increments the post comment count. */
   async createComment(data: CreateCommentData): Promise<CommentResponse> {
     const postId = validateId(data.postId, 'postId');
     const userId = validateId(data.userId, 'userId');
@@ -108,22 +107,24 @@ export class CommentService {
       throw new PostNotFoundError(postId);
     }
 
-    // Создаём комментарий (используем comments, а не comment)
-    const comment = await this.prisma.comments.create({
-      data: {
-        id_post: postId,
-        id_user: userId,
-        content,
-      },
-    });
+    const comment = await this.prisma.$transaction(async (tx) => {
+      const createdComment = await tx.comments.create({
+        data: {
+          id_post: postId,
+          id_user: userId,
+          content,
+        },
+      });
 
-    // Обновляем счётчик комментариев в посте
-    await this.prisma.posts.update({
-      where: { id_post: postId },
-      data: {
-        comments_count: { increment: 1 },
-        updated_at: new Date(),
-      },
+      await tx.posts.update({
+        where: { id_post: postId },
+        data: {
+          comments_count: { increment: 1 },
+          updated_at: new Date(),
+        },
+      });
+
+      return createdComment;
     });
 
     const createdComment = formatComment(comment);
@@ -132,7 +133,7 @@ export class CommentService {
     return createdComment;
   }
 
-  // ==================== GET COMMENTS BY POST ====================
+  /** Returns comments for a post. */
   async getCommentsByPost(postId: number): Promise<CommentsListResponse> {
     const validPostId = validateId(postId, 'postId');
 
@@ -159,7 +160,7 @@ export class CommentService {
     };
   }
 
-  // ==================== GET COMMENT BY ID ====================
+  /** Returns a comment by id. */
   async getCommentById(commentId: number): Promise<CommentResponse> {
     const validCommentId = validateId(commentId, 'commentId');
 
@@ -174,7 +175,7 @@ export class CommentService {
     return formatComment(comment);
   }
 
-  // ==================== UPDATE COMMENT ====================
+  /** Updates an owned comment. */
   async updateComment(
     commentId: number,
     userId: number,
@@ -210,7 +211,7 @@ export class CommentService {
     return formattedComment;
   }
 
-  // ==================== DELETE COMMENT ====================
+  /** Deletes an owned comment and decrements the post comment count. */
   async deleteComment(commentId: number, userId: number): Promise<void> {
     const validCommentId = validateId(commentId, 'commentId');
     const validUserId = validateId(userId, 'userId');
@@ -231,24 +232,23 @@ export class CommentService {
 
     const deletedComment = formatComment(comment);
 
-    // Удаляем комментарий
-    await this.prisma.comments.delete({
-      where: { id_comment: validCommentId },
-    });
-
-    // Уменьшаем счётчик комментариев в посте
-    await this.prisma.posts.update({
-      where: { id_post: comment.id_post },
-      data: {
-        comments_count: { decrement: 1 },
-        updated_at: new Date(),
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.comments.delete({
+        where: { id_comment: validCommentId },
+      }),
+      this.prisma.posts.update({
+        where: { id_post: comment.id_post },
+        data: {
+          comments_count: { decrement: 1 },
+          updated_at: new Date(),
+        },
+      }),
+    ]);
 
     await publishCommentEvent('comment.deleted', deletedComment);
   }
 
-  // ==================== GET COMMENTS COUNT ====================
+  /** Returns the number of comments for a post. */
   async getCommentsCount(postId: number): Promise<{ count: number }> {
     const validPostId = validateId(postId, 'postId');
 

@@ -5,24 +5,15 @@ ENV PORT=${SERVICE_PORT}
 
 WORKDIR /app
 
-# 1. Копируем зависимости
 COPY package*.json ./
+RUN npm ci
 
-# 2. Устанавливаем зависимости
-RUN npm ci || npm install
-
-# 3. Копируем Prisma-файлы ДО генерации клиента
 COPY prisma/ ./prisma/
 COPY prisma.config.ts ./prisma.config.ts
-
-# 4. 🔑 Генерируем Prisma Client (теперь схема доступна)
 RUN npx prisma generate
 
-# 5. Копируем остальной исходный код
 COPY . .
-
-# 6. Собираем TypeScript
-RUN npm run build || true
+RUN npm run build
 
 EXPOSE ${SERVICE_PORT}
 

@@ -54,6 +54,7 @@ const parseMessage = <T>(schema: z.ZodType<T>, content: Buffer): T => {
   return schema.parse(payload);
 };
 
+/** Registers all user-domain notification consumers. */
 export const registerUserEventConsumers = async (
   prisma: PrismaClient
 ): Promise<void> => {

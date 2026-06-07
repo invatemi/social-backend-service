@@ -73,6 +73,7 @@ export class EventBus {
 
   private constructor() {}
 
+  /** Returns the singleton event bus instance. */
   static getInstance(): EventBus {
     if (!EventBus.instance) {
       EventBus.instance = new EventBus();
@@ -81,6 +82,7 @@ export class EventBus {
     return EventBus.instance;
   }
 
+  /** Opens a RabbitMQ connection and asserts the user exchange. */
   async connect(): Promise<void> {
     if (this.channel) {
       return;
@@ -124,6 +126,7 @@ export class EventBus {
     }
   }
 
+  /** Publishes a durable user-domain event. */
   async publish(
     routingKey: UserEventRoutingKey,
     payload: UserEventPayload
@@ -156,6 +159,7 @@ export class EventBus {
     console.log(`[EventBus] Published ${routingKey}:`, payload);
   }
 
+  /** Closes the RabbitMQ channel and connection. */
   async disconnect(): Promise<void> {
     try {
       if (this.channel) {

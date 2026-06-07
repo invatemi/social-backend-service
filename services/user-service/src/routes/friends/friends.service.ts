@@ -85,7 +85,7 @@ const publishFriendEvent = async (
 export class FriendsService {
   constructor(private prisma: PrismaClient) {}
 
-  // Отправить заявку в друзья и автоматически подписать заявителя
+  /** Sends a friend request and follows the target user. */
   async sendFriendRequest(
     fromUserId: number,
     toUserId: number
@@ -172,6 +172,7 @@ export class FriendsService {
     };
   }
 
+  /** Accepts a pending friend request and creates a friendship. */
   async acceptFriendRequest(
     receiverId: number,
     requestId: number
@@ -272,6 +273,7 @@ export class FriendsService {
     };
   }
 
+  /** Returns incoming pending friend requests. */
   async getIncomingRequests(userId: number): Promise<{ requests: FriendRequestData[]; total: number }> {
     const id = validateUserId(userId);
     const cacheKey = userCacheKeys.incomingRequests(id);
@@ -298,6 +300,7 @@ export class FriendsService {
     return result;
   }
 
+  /** Returns outgoing pending friend requests. */
   async getOutgoingRequests(userId: number): Promise<{ requests: FriendRequestData[]; total: number }> {
     const id = validateUserId(userId);
     const cacheKey = userCacheKeys.outgoingRequests(id);
@@ -324,7 +327,7 @@ export class FriendsService {
     return result;
   }
 
-  // Получить список друзей пользователя
+  /** Returns friends for a user. */
   async getFriends(userId: number): Promise<FriendsResponse> {
     const id = validateUserId(userId);
     const cacheKey = userCacheKeys.friends(id);
@@ -373,11 +376,7 @@ export class FriendsService {
     return result;
   }
 
-  // Удалить из друзей и автоматически перенести в подписчики
-  // Логика:
-  //   1. Удаляем запись из friendships (дружба взаимная)
-  //   2. Создаём запись в followers: initiator → target
-  //      (тот, кто удалил, теперь подписан на того, кого удалил)
+  /** Removes a friendship and follows the removed user. */
   async removeFriend(
     initiatorId: number,
     targetId: number
@@ -438,7 +437,7 @@ export class FriendsService {
     return { movedToFollowing: true };
   }
 
-  // Проверить, являются ли пользователи друзьями
+  /** Checks whether two users are friends. */
   async areFriends(userId1: number, userId2: number): Promise<boolean> {
     const id1 = validateUserId(userId1);
     const id2 = validateUserId(userId2);
@@ -462,7 +461,7 @@ export class FriendsService {
     return result;
   }
 
-  // Получить количество друзей пользователя
+  /** Returns friend count for a user. */
   async getFriendsCount(userId: number): Promise<{ friendsCount: number }> {
     const id = validateUserId(userId);
     const cacheKey = userCacheKeys.friendsCount(id);

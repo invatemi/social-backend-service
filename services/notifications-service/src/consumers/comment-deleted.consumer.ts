@@ -11,17 +11,25 @@ const commentDeletedEventSchema = z.object({
   timestamp: z.string().datetime(),
 });
 
+/** Registers the comment.deleted notification consumer. */
 export const registerCommentDeletedConsumer = async (): Promise<void> => {
-  await eventBus.subscribe(QUEUE_NAME, async (message, { ack, nack }) => {
-    try {
-      const payload = JSON.parse(message.content.toString('utf8')) as unknown;
-      const event = commentDeletedEventSchema.parse(payload);
+  await eventBus.subscribe(
+    QUEUE_NAME,
+    async (message, { ack, nack }) => {
+      try {
+        const payload = JSON.parse(message.content.toString('utf8')) as unknown;
+        const event = commentDeletedEventSchema.parse(payload);
 
-      console.log('[Consumer:comment.deleted] Received:', event);
-      ack();
-    } catch (error) {
-      console.log('[Consumer:comment.deleted] Failed to process message:', error);
-      nack(false);
+        console.log('[Consumer:comment.deleted] Received:', event);
+        ack();
+      } catch (error) {
+        console.log('[Consumer:comment.deleted] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'post.events',
+      routingKey: 'comment.deleted',
     }
-  });
+  );
 };

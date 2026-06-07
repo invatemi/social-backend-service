@@ -1,14 +1,5 @@
-## 🏗️ Архитектура
+# Social Backend Service
 
-- 5 микросервисов на Node.js + TypeScript + Express
-- Изолированные PostgreSQL базы данных
-- API Gateway на KrakenD с маршрутизацией и валидацией
-- Оркестрация через Docker Compose
-- Health checks, environment-based конфигурация
-- Git monorepo с правильным .gitignore
+Backend социальной платформы, разделенный на независимые доменные сервисы для аутентификации, пользователей, публикаций, сообщений и уведомлений.
 
-## 🚀 Запуск
-
-```bash
-docker compose up -d --build
-curl http://localhost:8080/api/auth/health
+Сервисы взаимодействуют через API Gateway и доменные события, сохраняя данные в изолированных хранилищах каждого контекста.

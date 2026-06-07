@@ -409,6 +409,7 @@
     {
       "endpoint": "/api/notifications/stream",
       "method": "GET",
+      "timeout": "0s",
       "input_headers": ["Authorization"],
       "output_encoding": "no-op",
       "backend": [{
@@ -441,6 +442,10 @@
       "alg": "HS256",
       "key": "{{ env `JWT_SECRET` }}",
       "roles_key": "role",
+      "propagate_claims": [
+        ["userId", "x-user-id"],
+        ["role", "x-user-role"]
+      ],
       "roles": {
         "/api/auth/": ["admin", "moderator", "user", "guest"],
         "/api/users/": ["admin", "moderator", "user"],

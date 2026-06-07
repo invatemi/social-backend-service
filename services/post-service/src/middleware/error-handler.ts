@@ -19,6 +19,7 @@ import {
   PostAlreadyDraftError,
 } from '../routes/post/post.errors';
 
+/** Maps post and comment errors to HTTP responses. */
 export const errorHandler = (
   err: Error,
   req: Request,
@@ -30,61 +31,76 @@ export const errorHandler = (
   let errorCode = 'UNKNOWN_ERROR';
   let errorMessage = 'An error occurred';
   let errorField = null;
+  let statusCode = 500;
 
   // ==================== COMMENT ERRORS ====================
   if (err instanceof CommentValidationError) {
+    statusCode = 400;
     errorCode = 'VALIDATION_ERROR';
     errorMessage = err.message;
     errorField = err.field;
   } else if (err instanceof CommentNotFoundError) {
+    statusCode = 404;
     errorCode = 'COMMENT_NOT_FOUND';
     errorMessage = err.message;
   } else if (err instanceof CommentPostNotFoundError) {
+    statusCode = 404;
     errorCode = 'POST_NOT_FOUND';
     errorMessage = err.message;
   } else if (err instanceof CommentForbiddenError) {
+    statusCode = 403;
     errorCode = 'FORBIDDEN';
     errorMessage = err.message;
   } else if (err instanceof CommentUnauthorizedError) {
+    statusCode = 401;
     errorCode = 'UNAUTHORIZED';
     errorMessage = err.message;
   } else if (err instanceof CommentDeletedError) {
+    statusCode = 410;
     errorCode = 'COMMENT_DELETED';
     errorMessage = err.message;
   }
   
   // ==================== POST ERRORS ====================
   else if (err instanceof PostValidationError) {
+    statusCode = 400;
     errorCode = 'VALIDATION_ERROR';
     errorMessage = err.message;
     errorField = err.field;
   } else if (err instanceof PostNotFoundError) {
+    statusCode = 404;
     errorCode = 'POST_NOT_FOUND';
     errorMessage = err.message;
   } else if (err instanceof PostForbiddenError) {
+    statusCode = 403;
     errorCode = 'FORBIDDEN';
     errorMessage = err.message;
   } else if (err instanceof PostUnauthorizedError) {
+    statusCode = 401;
     errorCode = 'UNAUTHORIZED';
     errorMessage = err.message;
   } else if (err instanceof PostAlreadyPublishedError) {
+    statusCode = 409;
     errorCode = 'POST_ALREADY_PUBLISHED';
     errorMessage = err.message;
   } else if (err instanceof PostAlreadyDraftError) {
+    statusCode = 409;
     errorCode = 'POST_ALREADY_DRAFT';
     errorMessage = err.message;
   }
   
   // ==================== BASE ERRORS ====================
   else if (err instanceof CommentError) {
+    statusCode = 400;
     errorCode = 'COMMENT_ERROR';
     errorMessage = err.message;
   } else if (err instanceof PostError) {
+    statusCode = 400;
     errorCode = 'POST_ERROR';
     errorMessage = err.message;
   }
 
-  res.status(200).json({
+  res.status(statusCode).json({
     success: false,
     error: {
       code: errorCode,

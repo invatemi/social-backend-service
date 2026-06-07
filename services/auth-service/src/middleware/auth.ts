@@ -13,6 +13,7 @@ export interface AuthRequest extends Request {
   user?: JwtPayload;
 }
 
+/** Verifies a bearer JWT and attaches its payload to the request. */
 export const authenticateToken = (
   req: AuthRequest,
   res: Response,
@@ -45,6 +46,7 @@ export const authenticateToken = (
   }
 };
 
+/** Requires one of the allowed user roles. */
 export const requireRole = (...allowedRoles: JwtPayload['role'][]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {

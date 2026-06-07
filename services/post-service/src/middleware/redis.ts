@@ -43,6 +43,7 @@ const getRedisClient = async (): Promise<RedisClient | null> => {
 };
 
 export const cache = {
+  /** Reads and parses a cached JSON value. */
   async get<T>(key: string): Promise<T | null> {
     try {
       const client = await getRedisClient();
@@ -56,6 +57,7 @@ export const cache = {
     }
   },
 
+  /** Stores a JSON value with TTL. */
   async set<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
     try {
       const client = await getRedisClient();
@@ -67,6 +69,7 @@ export const cache = {
     }
   },
 
+  /** Deletes one cache key. */
   async del(key: string): Promise<void> {
     try {
       const client = await getRedisClient();
@@ -78,6 +81,7 @@ export const cache = {
     }
   },
 
+  /** Deletes cache keys in one command. */
   async delMany(keys: string[]): Promise<void> {
     if (keys.length === 0) return;
 
@@ -91,6 +95,7 @@ export const cache = {
     }
   },
 
+  /** Deletes keys matched by a scan pattern. */
   async delPattern(pattern: string): Promise<void> {
     try {
       const client = await getRedisClient();
@@ -107,6 +112,7 @@ export const cache = {
     }
   },
 
+  /** Closes the Redis connection if open. */
   async disconnect(): Promise<void> {
     if (!redisClient.isOpen) return;
     await redisClient.quit();

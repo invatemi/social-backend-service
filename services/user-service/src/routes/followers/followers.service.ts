@@ -68,7 +68,7 @@ const publishFollowEvent = async (
 export class FollowersService {
   constructor(private prisma: PrismaClient) {}
 
-  // Получить подписчиков пользователя
+  /** Returns followers for a user. */
   async getFollowers(userId: number): Promise<FollowersResponse> {
     const id = validateUserId(userId);
     const cacheKey = userCacheKeys.followers(id);
@@ -107,7 +107,7 @@ export class FollowersService {
     return result;
   }
 
-  // Получить подписки пользователя
+  /** Returns users followed by a user. */
   async getFollowing(userId: number): Promise<FollowingResponse> {
     const id = validateUserId(userId);
     const cacheKey = userCacheKeys.following(id);
@@ -146,7 +146,7 @@ export class FollowersService {
     return result;
   }
 
-  // Подписаться
+  /** Creates a follow relation. */
   async followUser(followerId: number, followingId: number): Promise<void> {
     const fid = validateUserId(followerId);
     const gid = validateUserId(followingId);
@@ -173,7 +173,7 @@ export class FollowersService {
     await publishFollowEvent('follow.created', follower, following);
   }
 
-  // Отписаться
+  /** Removes a follow relation. */
   async unfollowUser(followerId: number, followingId: number): Promise<void> {
     const fid = validateUserId(followerId);
     const gid = validateUserId(followingId);
@@ -201,7 +201,7 @@ export class FollowersService {
     );
   }
 
-  // Проверить подписку
+  /** Checks whether one user follows another. */
   async isFollowing(followerId: number, followingId: number): Promise<boolean> {
     const fid = validateUserId(followerId);
     const gid = validateUserId(followingId);
@@ -219,7 +219,7 @@ export class FollowersService {
     return result;
   }
 
-  // Количество подписчиков и подписок
+  /** Returns follower and following counts for a user. */
   async getCounts(userId: number) {
     const id = validateUserId(userId);
     const cacheKey = userCacheKeys.followCounts(id);

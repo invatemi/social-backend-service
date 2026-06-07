@@ -4,13 +4,9 @@ export interface KrakenDRequest extends Request {
   user?: { userId: number; role?: string };
 }
 
-/**
- * Middleware для извлечения данных пользователя из заголовков, 
- * которые передал KrakenD
- */
+/** Reads user context propagated by KrakenD. */
 export const krakendAuthMiddleware = (req: KrakenDRequest, res: Response, next: NextFunction) => {
-    const userIdStr = req.headers['x-user-id'] as string;
-
+  const userIdStr = req.headers['x-user-id'] as string;
 
   if (!userIdStr) {
     return res.status(401).json({ 
@@ -30,4 +26,4 @@ export const krakendAuthMiddleware = (req: KrakenDRequest, res: Response, next: 
   req.user = { userId, role };
 
   next();
-}
+};

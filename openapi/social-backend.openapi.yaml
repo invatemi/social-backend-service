@@ -1,0 +1,1763 @@
+openapi: 3.0.3
+info:
+  title: Social Backend API
+  version: 1.0.0
+  license:
+    name: UNLICENSED
+  description: |
+    Public API contract exposed through the KrakenD gateway.
+    Frontend clients should use these gateway paths, not internal service paths.
+servers:
+  - url: http://localhost:8080
+    description: Local KrakenD gateway
+tags:
+  - name: Auth
+    description: Registration, login, token refresh and logout.
+  - name: Users
+    description: Current user profile operations.
+  - name: Followers
+    description: Follow relationships and follow counters.
+  - name: Friends
+    description: Friend lists, requests and friendship status.
+  - name: Posts
+    description: Published feed and authenticated post management.
+  - name: Comments
+    description: Comment creation, updates, deletion and public reads.
+  - name: Notifications
+    description: Notification listing, read status and SSE stream.
+  - name: Health
+    description: Service health checks exposed by the gateway.
+security:
+  - bearerAuth: []
+paths:
+  /api/auth/health:
+    get:
+      tags: [Health]
+      summary: Check auth service health
+      operationId: getAuthHealth
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/HealthResponse'
+  /api/users/health:
+    get:
+      tags: [Health]
+      summary: Check user service health
+      operationId: getUsersHealth
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/HealthResponse'
+  /api/posts/health:
+    get:
+      tags: [Health]
+      summary: Check post service health
+      operationId: getPostsHealth
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/HealthResponse'
+  /api/messages/health:
+    get:
+      tags: [Health]
+      summary: Check message service health
+      operationId: getMessagesHealth
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/HealthResponse'
+  /api/notifications/health:
+    get:
+      tags: [Health]
+      summary: Check notifications service health
+      operationId: getNotificationsHealth
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/HealthResponse'
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a user
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              default:
+                value:
+                  email: user@example.com
+                  password: password123
+                  name: John Doe
+      responses:
+        '200':
+          description: User created and tokens issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+              examples:
+                default:
+                  value:
+                    message: User created successfully
+                    user:
+                      id: 1
+                      email: user@example.com
+                      role: user
+                    accessToken: '{{accessToken}}'
+                    refreshToken: '{{refreshToken}}'
+                    expiresIn: 15m
+        '400':
+          $ref: '#/components/responses/AuthErrorResponse'
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and issue tokens
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              default:
+                value:
+                  email: user@example.com
+                  password: password123
+      responses:
+        '200':
+          description: Authenticated user and tokens.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              examples:
+                default:
+                  value:
+                    user:
+                      id: 1
+                      email: user@example.com
+                      role: user
+                    accessToken: '{{accessToken}}'
+                    refreshToken: '{{refreshToken}}'
+                    expiresIn: 15m
+        '401':
+          $ref: '#/components/responses/AuthErrorResponse'
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access and refresh tokens
+      operationId: refreshTokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            examples:
+              default:
+                value:
+                  refreshToken: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      responses:
+        '200':
+          description: Fresh tokens.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+              examples:
+                default:
+                  value:
+                    accessToken: '{{accessToken}}'
+                    refreshToken: '{{refreshToken}}'
+                    expiresIn: 15m
+        '401':
+          $ref: '#/components/responses/AuthErrorResponse'
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout by invalidating a refresh token
+      operationId: logoutUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            examples:
+              default:
+                value:
+                  refreshToken: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      responses:
+        '200':
+          description: Logout completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                default:
+                  value:
+                    message: Logged out successfully
+        '400':
+          $ref: '#/components/responses/AuthErrorResponse'
+
+  /api/users/me:
+    patch:
+      tags: [Users]
+      summary: Update current user profile
+      operationId: updateMyProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+            examples:
+              default:
+                value:
+                  name: Jane Doe
+                  bio: Frontend developer
+                  location: Lisbon
+                  avatarUrl: https://example.com/avatar.png
+      responses:
+        '200':
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateProfileResponse'
+              examples:
+                default:
+                  value:
+                    success: true
+                    user:
+                      id: 1
+                      name: Jane Doe
+                      email: jane@example.com
+                      avatarUrl: https://example.com/avatar.png
+                      bio: Frontend developer
+                      location: Lisbon
+                    changedFields: [name, bio, location, avatarUrl]
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+
+  /api/users/me/followers:
+    get:
+      tags: [Followers]
+      summary: List followers of the current user
+      operationId: listMyFollowers
+      responses:
+        '200':
+          $ref: '#/components/responses/FollowersResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/users/me/following:
+    get:
+      tags: [Followers]
+      summary: List users followed by the current user
+      operationId: listMyFollowing
+      responses:
+        '200':
+          $ref: '#/components/responses/FollowingResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/users/me/is-following/{id}:
+    get:
+      tags: [Followers]
+      summary: Check if current user follows a user
+      operationId: checkMyFollowing
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Follow relation status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    required: [isFollowing]
+                    properties:
+                      isFollowing:
+                        type: boolean
+              examples:
+                default:
+                  value:
+                    success: true
+                    isFollowing: true
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/users/{id}/followers:
+    get:
+      tags: [Followers]
+      summary: List followers of a public user
+      operationId: listUserFollowers
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          $ref: '#/components/responses/FollowersResponse'
+  /api/users/{id}/following:
+    get:
+      tags: [Followers]
+      summary: List users followed by a public user
+      operationId: listUserFollowing
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          $ref: '#/components/responses/FollowingResponse'
+  /api/users/{id}/counts:
+    get:
+      tags: [Followers]
+      summary: Get follower and following counts for a user
+      operationId: getUserFollowCounts
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Follow counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowCountsResponse'
+              examples:
+                default:
+                  value:
+                    success: true
+                    followersCount: 12
+                    followingCount: 7
+  /api/users/{id}/follow:
+    post:
+      tags: [Followers]
+      summary: Follow a user
+      operationId: followUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessMessageResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+    delete:
+      tags: [Followers]
+      summary: Unfollow a user
+      operationId: unfollowUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessMessageResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+
+  /api/users/me/friends:
+    get:
+      tags: [Friends]
+      summary: List current user's friends
+      operationId: listMyFriends
+      responses:
+        '200':
+          $ref: '#/components/responses/FriendsResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/users/me/friends/{id}:
+    delete:
+      tags: [Friends]
+      summary: Remove a friend
+      operationId: removeFriend
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Friend removed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendMutationResponse'
+              examples:
+                default:
+                  value:
+                    success: true
+                    message: Friend removed and moved to following
+                    movedToFollowing: true
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/users/me/is-friends/{id}:
+    get:
+      tags: [Friends]
+      summary: Check if current user and target user are friends
+      operationId: checkMyFriendship
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Friendship status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    required: [areFriends]
+                    properties:
+                      areFriends:
+                        type: boolean
+              examples:
+                default:
+                  value:
+                    success: true
+                    areFriends: true
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/users/{id}/friends:
+    get:
+      tags: [Friends]
+      summary: List a public user's friends
+      operationId: listUserFriends
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          $ref: '#/components/responses/FriendsResponse'
+  /api/users/{id}/friends/count:
+    get:
+      tags: [Friends]
+      summary: Count a public user's friends
+      operationId: getUserFriendCount
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Friend count.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendCountResponse'
+              examples:
+                default:
+                  value:
+                    success: true
+                    friendsCount: 5
+  /api/users/{id}/friends/request:
+    post:
+      tags: [Friends]
+      summary: Send a friend request
+      operationId: sendFriendRequest
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '201':
+          description: Friend request created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestMutationResponse'
+              examples:
+                default:
+                  value:
+                    success: true
+                    message: Friend request sent
+                    request:
+                      id: 10
+                      fromUser:
+                        id: 1
+                        name: Jane Doe
+                        email: jane@example.com
+                        avatarUrl: null
+                      toUser:
+                        id: 2
+                        name: John Doe
+                        email: john@example.com
+                        avatarUrl: null
+                      status: pending
+                      createdAt: '2026-06-07T16:00:00.000Z'
+                      updatedAt: '2026-06-07T16:00:00.000Z'
+                    movedToFollowing: true
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/users/me/friends/requests/incoming:
+    get:
+      tags: [Friends]
+      summary: List incoming friend requests
+      operationId: listIncomingFriendRequests
+      responses:
+        '200':
+          $ref: '#/components/responses/FriendRequestsResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/users/me/friends/requests/outgoing:
+    get:
+      tags: [Friends]
+      summary: List outgoing friend requests
+      operationId: listOutgoingFriendRequests
+      responses:
+        '200':
+          $ref: '#/components/responses/FriendRequestsResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/users/me/friends/requests/{id}/accept:
+    post:
+      tags: [Friends]
+      summary: Accept an incoming friend request
+      operationId: acceptFriendRequest
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Friend request accepted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/FriendRequestMutationResponse'
+                  - type: object
+                    properties:
+                      friendshipId:
+                        type: integer
+                        example: 22
+              examples:
+                default:
+                  value:
+                    success: true
+                    message: Friend request accepted
+                    request:
+                      id: 10
+                      fromUser:
+                        id: 2
+                        name: John Doe
+                        email: john@example.com
+                        avatarUrl: null
+                      toUser:
+                        id: 1
+                        name: Jane Doe
+                        email: jane@example.com
+                        avatarUrl: null
+                      status: accepted
+                      createdAt: '2026-06-07T16:00:00.000Z'
+                      updatedAt: '2026-06-07T16:05:00.000Z'
+                    friendshipId: 22
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+
+  /api/posts:
+    get:
+      tags: [Posts]
+      summary: List published posts
+      operationId: listPosts
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          $ref: '#/components/responses/PostsListResponse'
+    post:
+      tags: [Posts]
+      summary: Create a post
+      operationId: createPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+            examples:
+              default:
+                value:
+                  title: First post
+                  content: Hello from the API
+                  imageUrl: https://example.com/image.png
+                  isPublished: true
+      responses:
+        '200':
+          $ref: '#/components/responses/PostResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/posts/me:
+    get:
+      tags: [Posts]
+      summary: List current user's posts including drafts
+      operationId: listMyPosts
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          $ref: '#/components/responses/PostsListResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/posts/{id}:
+    get:
+      tags: [Posts]
+      summary: Get a post by id
+      operationId: getPost
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '200':
+          $ref: '#/components/responses/PostResponse'
+    put:
+      tags: [Posts]
+      summary: Update an owned post
+      operationId: updatePost
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePostRequest'
+            examples:
+              default:
+                value:
+                  title: Updated post
+                  content: Updated content
+                  imageUrl: https://example.com/updated.png
+      responses:
+        '200':
+          $ref: '#/components/responses/PostResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+    delete:
+      tags: [Posts]
+      summary: Delete an owned post
+      operationId: deletePost
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessMessageResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/posts/{id}/publish:
+    post:
+      tags: [Posts]
+      summary: Publish an owned draft post
+      operationId: publishPost
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '200':
+          $ref: '#/components/responses/PostResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/posts/{id}/unpublish:
+    post:
+      tags: [Posts]
+      summary: Move an owned post back to draft
+      operationId: unpublishPost
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '200':
+          $ref: '#/components/responses/PostResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/posts/user/{userId}:
+    get:
+      tags: [Posts]
+      summary: List published posts for a user
+      operationId: listPostsByUser
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PathUserId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          $ref: '#/components/responses/PostsListResponse'
+
+  /api/comments:
+    post:
+      tags: [Comments]
+      summary: Create a comment
+      operationId: createComment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+            examples:
+              default:
+                value:
+                  postId: 1
+                  content: Great post!
+      responses:
+        '200':
+          $ref: '#/components/responses/CommentResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/comments/{id}:
+    get:
+      tags: [Comments]
+      summary: Get a comment by id
+      operationId: getComment
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      responses:
+        '200':
+          $ref: '#/components/responses/CommentResponse'
+    put:
+      tags: [Comments]
+      summary: Update an owned comment
+      operationId: updateComment
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCommentRequest'
+            examples:
+              default:
+                value:
+                  content: Updated comment
+      responses:
+        '200':
+          $ref: '#/components/responses/CommentResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+    delete:
+      tags: [Comments]
+      summary: Delete an owned comment
+      operationId: deleteComment
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessMessageResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/comments/post/{postId}:
+    get:
+      tags: [Comments]
+      summary: List comments for a post
+      operationId: listCommentsByPost
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PathPostId'
+      responses:
+        '200':
+          $ref: '#/components/responses/CommentsListResponse'
+  /api/comments/post/{postId}/count:
+    get:
+      tags: [Comments]
+      summary: Count comments for a post
+      operationId: countCommentsByPost
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PathPostId'
+      responses:
+        '200':
+          description: Comment count.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    required: [count]
+                    properties:
+                      count:
+                        type: integer
+                        example: 3
+              examples:
+                default:
+                  value:
+                    success: true
+                    count: 3
+
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      summary: List current user's notifications
+      operationId: listNotifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          example: true
+      responses:
+        '200':
+          description: Notification list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationsResponse'
+              examples:
+                default:
+                  value:
+                    success: true
+                    notifications:
+                      - id: 1
+                        recipientUserId: 1
+                        actorUserId: 2
+                        type: post.created
+                        title: New post
+                        body: John created a post
+                        payload:
+                          postId: 15
+                        readAt: null
+                        createdAt: '2026-06-07T16:00:00.000Z'
+                        updatedAt: '2026-06-07T16:00:00.000Z'
+                    total: 1
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/notifications/stream:
+    get:
+      tags: [Notifications]
+      summary: Stream notifications for the current user
+      description: Server-Sent Events endpoint. Events include `notification.created` with a JSON notification payload.
+      operationId: streamNotifications
+      responses:
+        '200':
+          description: SSE stream of notification events.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  event: notification.created
+                  data: {"id":1,"recipientUserId":1,"type":"post.created","title":"New post"}
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      operationId: markAllNotificationsRead
+      responses:
+        '200':
+          $ref: '#/components/responses/UpdatedCountResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+  /api/notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark one notification as read
+      operationId: markNotificationRead
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+      responses:
+        '200':
+          $ref: '#/components/responses/UpdatedCountResponse'
+        '401':
+          $ref: '#/components/responses/GatewayAuthErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 2
+    RequestId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 10
+    PostId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+    PathPostId:
+      name: postId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+    PathUserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 2
+    CommentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      example: 10
+  responses:
+    HealthResponse:
+      description: Service health status.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Health'
+          examples:
+            default:
+              value:
+                status: ok
+                service: social-auth-service
+                database: connected
+                timestamp: '2026-06-07T16:00:00.000Z'
+    FollowersResponse:
+      description: Followers list.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FollowersResponse'
+          examples:
+            default:
+              value:
+                success: true
+                user:
+                  id: 1
+                  name: Jane Doe
+                followers:
+                  - id: 2
+                    name: John Doe
+                    email: john@example.com
+                    avatarUrl: null
+                    followedAt: '2026-06-07T16:00:00.000Z'
+                total: 1
+    FollowingResponse:
+      description: Following list.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FollowingResponse'
+          examples:
+            default:
+              value:
+                success: true
+                user:
+                  id: 1
+                  name: Jane Doe
+                following:
+                  - id: 2
+                    name: John Doe
+                    email: john@example.com
+                    avatarUrl: null
+                    followedAt: '2026-06-07T16:00:00.000Z'
+                total: 1
+    FriendsResponse:
+      description: Friends list.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FriendsResponse'
+          examples:
+            default:
+              value:
+                success: true
+                user:
+                  id: 1
+                  name: Jane Doe
+                friends:
+                  - id: 2
+                    name: John Doe
+                    email: john@example.com
+                    avatarUrl: null
+                    friendsSince: '2026-06-07T16:00:00.000Z'
+                total: 1
+    FriendRequestsResponse:
+      description: Friend requests list.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FriendRequestsResponse'
+          examples:
+            default:
+              value:
+                success: true
+                requests:
+                  - id: 10
+                    fromUser:
+                      id: 2
+                      name: John Doe
+                      email: john@example.com
+                      avatarUrl: null
+                    toUser:
+                      id: 1
+                      name: Jane Doe
+                      email: jane@example.com
+                      avatarUrl: null
+                    status: pending
+                    createdAt: '2026-06-07T16:00:00.000Z'
+                    updatedAt: '2026-06-07T16:00:00.000Z'
+                total: 1
+    PostsListResponse:
+      description: Paginated posts.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PostsListResponse'
+          examples:
+            default:
+              value:
+                success: true
+                posts:
+                  - id: 1
+                    userId: 1
+                    title: First post
+                    content: Hello from the API
+                    imageUrl: null
+                    isPublished: true
+                    likesCount: 0
+                    commentsCount: 0
+                    createdAt: '2026-06-07T16:00:00.000Z'
+                    updatedAt: '2026-06-07T16:00:00.000Z'
+                total: 1
+                page: 1
+                pageSize: 10
+                totalPages: 1
+    PostResponse:
+      description: Single post response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PostEnvelope'
+          examples:
+            default:
+              value:
+                success: true
+                post:
+                  id: 1
+                  userId: 1
+                  title: First post
+                  content: Hello from the API
+                  imageUrl: https://example.com/image.png
+                  isPublished: true
+                  likesCount: 0
+                  commentsCount: 0
+                  createdAt: '2026-06-07T16:00:00.000Z'
+                  updatedAt: '2026-06-07T16:00:00.000Z'
+    CommentResponse:
+      description: Single comment response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommentEnvelope'
+          examples:
+            default:
+              value:
+                success: true
+                comment:
+                  id: 1
+                  postId: 1
+                  userId: 1
+                  content: Great post!
+                  createdAt: '2026-06-07T16:00:00.000Z'
+    CommentsListResponse:
+      description: Comments for a post.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommentsListResponse'
+          examples:
+            default:
+              value:
+                success: true
+                comments:
+                  - id: 1
+                    postId: 1
+                    userId: 1
+                    content: Great post!
+                    createdAt: '2026-06-07T16:00:00.000Z'
+                total: 1
+                post:
+                  id: 1
+    SuccessMessageResponse:
+      description: Successful mutation response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SuccessMessageResponse'
+          examples:
+            default:
+              value:
+                success: true
+                message: Operation completed successfully
+    UpdatedCountResponse:
+      description: Number of updated records.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UpdatedCountResponse'
+          examples:
+            default:
+              value:
+                success: true
+                updated: 1
+    GatewayAuthErrorResponse:
+      description: Gateway or auth middleware error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GatewayError'
+          examples:
+            missingToken:
+              value:
+                success: false
+                message: Missing or invalid Authorization header
+    AuthErrorResponse:
+      description: Auth service error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ServiceError'
+          examples:
+            validation:
+              value:
+                success: false
+                error:
+                  code: VALIDATION_ERROR
+                  message: Invalid email format
+                  field: email
+  schemas:
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: social-auth-service
+        database:
+          type: string
+          nullable: true
+          example: connected
+        timestamp:
+          type: string
+          format: date-time
+        port:
+          type: integer
+          nullable: true
+          example: 3005
+    SuccessEnvelope:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          example: true
+    RegisterRequest:
+      type: object
+      required: [email, password, name]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          minLength: 8
+          format: password
+          example: password123
+        name:
+          type: string
+          minLength: 2
+          example: John Doe
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          minLength: 8
+          format: password
+          example: password123
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          minLength: 96
+          maxLength: 96
+          example: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    AuthUser:
+      type: object
+      required: [id, email, role]
+      properties:
+        id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        role:
+          type: string
+          example: user
+    AuthTokens:
+      type: object
+      required: [accessToken, refreshToken, expiresIn]
+      properties:
+        accessToken:
+          type: string
+          example: '{{accessToken}}'
+        refreshToken:
+          type: string
+          example: '{{refreshToken}}'
+        expiresIn:
+          type: string
+          example: 15m
+    RegisterResponse:
+      allOf:
+        - $ref: '#/components/schemas/AuthTokens'
+        - type: object
+          required: [message, user]
+          properties:
+            message:
+              type: string
+              example: User created successfully
+            user:
+              $ref: '#/components/schemas/AuthUser'
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/AuthTokens'
+        - type: object
+          required: [user]
+          properties:
+            user:
+              $ref: '#/components/schemas/AuthUser'
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    SuccessMessageResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [message]
+          properties:
+            message:
+              type: string
+    UserSummary:
+      type: object
+      required: [id, name, email, avatarUrl]
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Jane Doe
+        email:
+          type: string
+          format: email
+          example: jane@example.com
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: null
+    PublicUserRef:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Jane Doe
+    FollowerUser:
+      allOf:
+        - $ref: '#/components/schemas/UserSummary'
+        - type: object
+          required: [followedAt]
+          properties:
+            followedAt:
+              type: string
+              format: date-time
+    FriendUser:
+      allOf:
+        - $ref: '#/components/schemas/UserSummary'
+        - type: object
+          required: [friendsSince]
+          properties:
+            friendsSince:
+              type: string
+              format: date-time
+    FollowersResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [user, followers, total]
+          properties:
+            user:
+              $ref: '#/components/schemas/PublicUserRef'
+            followers:
+              type: array
+              items:
+                $ref: '#/components/schemas/FollowerUser'
+            total:
+              type: integer
+              example: 1
+    FollowingResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [user, following, total]
+          properties:
+            user:
+              $ref: '#/components/schemas/PublicUserRef'
+            following:
+              type: array
+              items:
+                $ref: '#/components/schemas/FollowerUser'
+            total:
+              type: integer
+              example: 1
+    FollowCountsResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [followersCount, followingCount]
+          properties:
+            followersCount:
+              type: integer
+              example: 12
+            followingCount:
+              type: integer
+              example: 7
+    FriendsResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [user, friends, total]
+          properties:
+            user:
+              $ref: '#/components/schemas/PublicUserRef'
+            friends:
+              type: array
+              items:
+                $ref: '#/components/schemas/FriendUser'
+            total:
+              type: integer
+              example: 1
+    FriendCountResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [friendsCount]
+          properties:
+            friendsCount:
+              type: integer
+              example: 5
+    FriendRequest:
+      type: object
+      required: [id, fromUser, toUser, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          example: 10
+        fromUser:
+          $ref: '#/components/schemas/UserSummary'
+        toUser:
+          $ref: '#/components/schemas/UserSummary'
+        status:
+          type: string
+          example: pending
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FriendRequestsResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [requests, total]
+          properties:
+            requests:
+              type: array
+              items:
+                $ref: '#/components/schemas/FriendRequest'
+            total:
+              type: integer
+              example: 1
+    FriendRequestMutationResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessMessageResponse'
+        - type: object
+          required: [request]
+          properties:
+            request:
+              $ref: '#/components/schemas/FriendRequest'
+            movedToFollowing:
+              type: boolean
+              example: true
+    FriendMutationResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessMessageResponse'
+        - type: object
+          properties:
+            movedToFollowing:
+              type: boolean
+              example: true
+    UpdateProfileRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 30
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        bio:
+          type: string
+          maxLength: 500
+          nullable: true
+        location:
+          type: string
+          maxLength: 100
+          nullable: true
+    ProfileUser:
+      type: object
+      required: [id, name, email, avatarUrl, bio, location]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+    UpdateProfileResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [user, changedFields]
+          properties:
+            user:
+              $ref: '#/components/schemas/ProfileUser'
+            changedFields:
+              type: array
+              items:
+                type: string
+    CreatePostRequest:
+      type: object
+      required: [content]
+      properties:
+        title:
+          type: string
+          maxLength: 150
+          nullable: true
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+        isPublished:
+          type: boolean
+          default: true
+    UpdatePostRequest:
+      type: object
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          maxLength: 150
+          nullable: true
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+    Post:
+      type: object
+      required: [id, userId, title, content, imageUrl, isPublished, likesCount, commentsCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        title:
+          type: string
+          nullable: true
+        content:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+        isPublished:
+          type: boolean
+        likesCount:
+          type: integer
+        commentsCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PostEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [post]
+          properties:
+            post:
+              $ref: '#/components/schemas/Post'
+    PostsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [posts, total, page, pageSize, totalPages]
+          properties:
+            posts:
+              type: array
+              items:
+                $ref: '#/components/schemas/Post'
+            total:
+              type: integer
+            page:
+              type: integer
+            pageSize:
+              type: integer
+            totalPages:
+              type: integer
+    CreateCommentRequest:
+      type: object
+      required: [postId, content]
+      properties:
+        postId:
+          type: integer
+          minimum: 1
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+    UpdateCommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+    Comment:
+      type: object
+      required: [id, postId, userId, content, createdAt]
+      properties:
+        id:
+          type: integer
+        postId:
+          type: integer
+        userId:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    CommentEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [comment]
+          properties:
+            comment:
+              $ref: '#/components/schemas/Comment'
+    CommentsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [comments, total, post]
+          properties:
+            comments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Comment'
+            total:
+              type: integer
+            post:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: integer
+    Notification:
+      type: object
+      required: [id, recipientUserId, type, title, body, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        recipientUserId:
+          type: integer
+        actorUserId:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          example: post.created
+        title:
+          type: string
+        body:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+          nullable: true
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NotificationsResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [notifications, total]
+          properties:
+            notifications:
+              type: array
+              items:
+                $ref: '#/components/schemas/Notification'
+            total:
+              type: integer
+    UpdatedCountResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          required: [updated]
+          properties:
+            updated:
+              type: integer
+              example: 1
+    ServiceError:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Invalid request
+            field:
+              type: string
+              nullable: true
+              example: email
+    GatewayError:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Missing or invalid Authorization header

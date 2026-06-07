@@ -23,6 +23,15 @@
       "auto_delete": false,
       "internal": false,
       "arguments": {}
+    },
+    {
+      "name": "dead-letter.events",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
     }
   ],
   "queues": [
@@ -133,6 +142,27 @@
       "arguments": {
         "x-queue-type": "classic"
       }
+    },
+    {
+      "name": "notifications.dead-letter",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    }
+  ],
+  "policies": [
+    {
+      "name": "notifications-dlx",
+      "vhost": "/",
+      "pattern": "^notifications\\.(comment|post|user)\\.",
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "dead-letter.events"
+      },
+      "priority": 0
     }
   ],
   "bindings": [
@@ -230,6 +260,14 @@
       "destination": "notifications.user.updated",
       "destination_type": "queue",
       "routing_key": "user.updated",
+      "arguments": {}
+    },
+    {
+      "source": "dead-letter.events",
+      "vhost": "/",
+      "destination": "notifications.dead-letter",
+      "destination_type": "queue",
+      "routing_key": "",
       "arguments": {}
     }
   ]

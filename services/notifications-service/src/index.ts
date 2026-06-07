@@ -1,4 +1,5 @@
 import express from 'express';
+import type { ErrorRequestHandler } from 'express';
 import { PrismaClient } from './generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
@@ -22,6 +23,7 @@ const pool = new Pool({
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
+/** Checks database connectivity with retry. */
 async function connectWithRetry(maxAttempts = 10, delayMs = 2000): Promise<boolean> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -71,9 +73,20 @@ app.use('/api/notifications', (req, res, next) => {
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
-const start = async (): Promise<void> => {
-  await connectWithRetry();
+const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+  const isValidationError = error?.name === 'ZodError';
 
+  res.status(isValidationError ? 400 : 500).json({
+    success: false,
+    error: isValidationError ? 'Validation error' : 'Internal server error',
+  });
+};
+
+app.use(errorHandler);
+
+/** Starts RabbitMQ consumers after the HTTP server is available. */
+const startConsumers = async (): Promise<void> => {
+  await connectWithRetry();
   await eventBus.connect();
   await Promise.all([
     registerCommentCreatedConsumer(),
@@ -84,13 +97,22 @@ const start = async (): Promise<void> => {
     registerPostDeletedConsumer(),
     registerUserEventConsumers(prisma),
   ]);
+  console.log('Notification consumers are ready');
+};
 
+/** Starts the HTTP server and background consumers. */
+const start = async (): Promise<void> => {
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Running on port ${PORT}`);
   });
 
+  void startConsumers().catch((error) => {
+    console.log('Failed to initialize notification consumers:', error);
+  });
+
   let isShuttingDown = false;
 
+  /** Gracefully closes HTTP, broker, and database resources. */
   const shutdown = async (signal: string): Promise<void> => {
     if (isShuttingDown) {
       return;

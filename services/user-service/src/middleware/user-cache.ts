@@ -20,6 +20,7 @@ export const userCacheKeys = {
   },
 };
 
+/** Invalidates cached profile and relation lists affected by a profile update. */
 export const invalidateUserProfileCache = async (userId: number): Promise<void> => {
   await Promise.all([
     cache.del(userCacheKeys.byId(userId)),
@@ -29,6 +30,7 @@ export const invalidateUserProfileCache = async (userId: number): Promise<void> 
   ]);
 };
 
+/** Invalidates cached follow lists and counters for two users. */
 export const invalidateFollowCaches = async (
   followerId: number,
   followingId: number
@@ -42,6 +44,7 @@ export const invalidateFollowCaches = async (
   ]);
 };
 
+/** Invalidates cached friend lists, counters, requests, and relation status. */
 export const invalidateFriendCaches = async (
   userId1: number,
   userId2: number

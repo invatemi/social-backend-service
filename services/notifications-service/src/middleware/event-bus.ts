@@ -40,6 +40,7 @@ export class EventBus {
 
   private constructor() {}
 
+  /** Returns the singleton event bus instance. */
   static getInstance(): EventBus {
     if (!EventBus.instance) {
       EventBus.instance = new EventBus();
@@ -48,6 +49,7 @@ export class EventBus {
     return EventBus.instance;
   }
 
+  /** Opens a RabbitMQ connection and consumer channel. */
   async connect(): Promise<void> {
     if (this.channel) {
       return;
@@ -115,6 +117,7 @@ export class EventBus {
     }
   }
 
+  /** Subscribes to a durable queue with manual acknowledgements. */
   async subscribe(
     queueName: string,
     handler: EventHandler,
@@ -165,6 +168,7 @@ export class EventBus {
     console.log(`[EventBus] Subscribed to queue ${queueName}`);
   }
 
+  /** Closes the RabbitMQ channel and connection. */
   async disconnect(): Promise<void> {
     try {
       if (this.channel) {

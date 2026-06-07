@@ -2,6 +2,7 @@ import { Response } from 'express';
 
 const clients = new Map<number, Set<Response>>();
 
+/** Registers an SSE client for one user. */
 export const registerNotificationStream = (
   userId: number,
   response: Response
@@ -31,6 +32,7 @@ export const registerNotificationStream = (
   });
 };
 
+/** Sends a notification event to active SSE clients for one user. */
 export const publishNotificationToUser = (
   userId: number,
   notification: unknown

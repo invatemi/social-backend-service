@@ -13,6 +13,7 @@ const postUpdatedEventSchema = z.object({
   timestamp: z.string().datetime(),
 });
 
+/** Registers the post.updated notification consumer. */
 export const registerPostUpdatedConsumer = async (): Promise<void> => {
   await eventBus.subscribe(
     QUEUE_NAME,
