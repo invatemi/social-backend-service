@@ -439,7 +439,7 @@
   "extra_config": {
     "auth/validator": {
       "alg": "HS256",
-      "key": "${JWT_SECRET}",
+      "key": "{{ env `JWT_SECRET` }}",
       "roles_key": "role",
       "roles": {
         "/api/auth/": ["admin", "moderator", "user", "guest"],
