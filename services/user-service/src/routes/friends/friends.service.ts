@@ -9,6 +9,13 @@ import {
   FriendRequestNotFoundError,
 } from './friends.errors';
 import { eventBus, UserSummary } from '../../middleware/event-bus';
+import { cache } from '../../middleware/redis';
+import {
+  invalidateFollowCaches,
+  invalidateFriendCaches,
+  USER_LIST_CACHE_TTL_SECONDS,
+  userCacheKeys,
+} from '../../middleware/user-cache';
 
 export interface FriendData {
   id: number;
@@ -154,6 +161,10 @@ export class FriendsService {
       toUser,
       timestamp: new Date().toISOString(),
     });
+    await Promise.all([
+      invalidateFollowCaches(fromId, toId),
+      invalidateFriendCaches(fromId, toId),
+    ]);
 
     return {
       request: formatFriendRequest(request),
@@ -249,6 +260,11 @@ export class FriendsService {
       toUser: result.request.to,
       timestamp: new Date().toISOString(),
     });
+    await Promise.all([
+      invalidateFollowCaches(result.request.fromUserId, result.request.toUserId),
+      invalidateFollowCaches(result.request.toUserId, result.request.fromUserId),
+      invalidateFriendCaches(result.request.fromUserId, result.request.toUserId),
+    ]);
 
     return {
       request: formatFriendRequest(result.request),
@@ -258,6 +274,11 @@ export class FriendsService {
 
   async getIncomingRequests(userId: number): Promise<{ requests: FriendRequestData[]; total: number }> {
     const id = validateUserId(userId);
+    const cacheKey = userCacheKeys.incomingRequests(id);
+    const cached = await cache.get<{ requests: FriendRequestData[]; total: number }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const requests = await this.prisma.friendRequest.findMany({
       where: { toUserId: id, status: 'pending' },
@@ -268,14 +289,22 @@ export class FriendsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return {
+    const result = {
       requests: requests.map(formatFriendRequest),
       total: requests.length,
     };
+
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   async getOutgoingRequests(userId: number): Promise<{ requests: FriendRequestData[]; total: number }> {
     const id = validateUserId(userId);
+    const cacheKey = userCacheKeys.outgoingRequests(id);
+    const cached = await cache.get<{ requests: FriendRequestData[]; total: number }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const requests = await this.prisma.friendRequest.findMany({
       where: { fromUserId: id, status: 'pending' },
@@ -286,15 +315,23 @@ export class FriendsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return {
+    const result = {
       requests: requests.map(formatFriendRequest),
       total: requests.length,
     };
+
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // Получить список друзей пользователя
   async getFriends(userId: number): Promise<FriendsResponse> {
     const id = validateUserId(userId);
+    const cacheKey = userCacheKeys.friends(id);
+    const cached = await cache.get<FriendsResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -331,7 +368,9 @@ export class FriendsService {
       };
     });
 
-    return { user, friends, total: friends.length };
+    const result = { user, friends, total: friends.length };
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // Удалить из друзей и автоматически перенести в подписчики
@@ -385,6 +424,10 @@ export class FriendsService {
       }),
     ]);
 
+    await Promise.all([
+      invalidateFriendCaches(initId, targId),
+      invalidateFollowCaches(initId, targId),
+    ]);
     await publishFriendEvent('friend.removed', {
       initiatorUser: initiator,
       targetUser: target,
@@ -399,6 +442,11 @@ export class FriendsService {
   async areFriends(userId1: number, userId2: number): Promise<boolean> {
     const id1 = validateUserId(userId1);
     const id2 = validateUserId(userId2);
+    const cacheKey = userCacheKeys.friendship(id1, id2);
+    const cached = await cache.get<boolean>(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
 
     const friendship = await this.prisma.friendship.findFirst({
       where: {
@@ -409,12 +457,19 @@ export class FriendsService {
       },
     });
 
-    return !!friendship;
+    const result = !!friendship;
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // Получить количество друзей пользователя
   async getFriendsCount(userId: number): Promise<{ friendsCount: number }> {
     const id = validateUserId(userId);
+    const cacheKey = userCacheKeys.friendsCount(id);
+    const cached = await cache.get<{ friendsCount: number }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -428,6 +483,8 @@ export class FriendsService {
       },
     });
 
-    return { friendsCount };
+    const result = { friendsCount };
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 }

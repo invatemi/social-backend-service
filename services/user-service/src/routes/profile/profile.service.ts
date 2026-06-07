@@ -1,6 +1,12 @@
 import { PrismaClient } from '../../generated/prisma/client';
 import { eventBus } from '../../middleware/event-bus';
 import { UserNotFoundError, ValidationError } from '../followers/followers.errors';
+import { cache } from '../../middleware/redis';
+import {
+  invalidateUserProfileCache,
+  USER_CACHE_TTL_SECONDS,
+  userCacheKeys,
+} from '../../middleware/user-cache';
 
 export interface UpdateProfileInput {
   name?: string;
@@ -55,6 +61,9 @@ export class ProfileService {
         location: true,
       },
     });
+
+    await invalidateUserProfileCache(id);
+    await cache.set(userCacheKeys.byId(id), updatedUser, USER_CACHE_TTL_SECONDS);
 
     try {
       await eventBus.publish('user.updated', {

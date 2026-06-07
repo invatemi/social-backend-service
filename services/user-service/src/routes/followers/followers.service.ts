@@ -7,6 +7,12 @@ import {
   NotFollowingError,
 } from './followers.errors';
 import { eventBus, UserSummary } from '../../middleware/event-bus';
+import { cache } from '../../middleware/redis';
+import {
+  invalidateFollowCaches,
+  USER_LIST_CACHE_TTL_SECONDS,
+  userCacheKeys,
+} from '../../middleware/user-cache';
 
 export interface FollowerData {
   id: number;
@@ -65,6 +71,11 @@ export class FollowersService {
   // Получить подписчиков пользователя
   async getFollowers(userId: number): Promise<FollowersResponse> {
     const id = validateUserId(userId);
+    const cacheKey = userCacheKeys.followers(id);
+    const cached = await cache.get<FollowersResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -91,12 +102,19 @@ export class FollowersService {
       followedAt: f.createdAt,
     }));
 
-    return { user, followers, total: followers.length };
+    const result = { user, followers, total: followers.length };
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // Получить подписки пользователя
   async getFollowing(userId: number): Promise<FollowingResponse> {
     const id = validateUserId(userId);
+    const cacheKey = userCacheKeys.following(id);
+    const cached = await cache.get<FollowingResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -123,7 +141,9 @@ export class FollowersService {
       followedAt: f.createdAt,
     }));
 
-    return { user, following, total: following.length };
+    const result = { user, following, total: following.length };
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // Подписаться
@@ -149,6 +169,7 @@ export class FollowersService {
       data: { followerId: fid, followingId: gid },
     });
 
+    await invalidateFollowCaches(fid, gid);
     await publishFollowEvent('follow.created', follower, following);
   }
 
@@ -172,6 +193,7 @@ export class FollowersService {
       where: { followerId_followingId: { followerId: fid, followingId: gid } },
     });
 
+    await invalidateFollowCaches(fid, gid);
     await publishFollowEvent(
       'follow.deleted',
       existing.follower,
@@ -183,16 +205,28 @@ export class FollowersService {
   async isFollowing(followerId: number, followingId: number): Promise<boolean> {
     const fid = validateUserId(followerId);
     const gid = validateUserId(followingId);
+    const cacheKey = userCacheKeys.isFollowing(fid, gid);
+    const cached = await cache.get<boolean>(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
 
     const existing = await this.prisma.follow.findUnique({
       where: { followerId_followingId: { followerId: fid, followingId: gid } },
     });
-    return !!existing;
+    const result = !!existing;
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // Количество подписчиков и подписок
   async getCounts(userId: number) {
     const id = validateUserId(userId);
+    const cacheKey = userCacheKeys.followCounts(id);
+    const cached = await cache.get<{ followersCount: number; followingCount: number }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -205,6 +239,8 @@ export class FollowersService {
       this.prisma.follow.count({ where: { followerId: id } }),
     ]);
 
-    return { followersCount, followingCount };
+    const result = { followersCount, followingCount };
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 }

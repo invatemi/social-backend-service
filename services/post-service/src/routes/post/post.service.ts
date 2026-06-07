@@ -7,6 +7,7 @@ import {
   PostAlreadyPublishedError,
   PostAlreadyDraftError,
 } from './post.errors';
+import { cache } from '../../middleware/redis';
 
 // ==================== TYPES ====================
 export interface CreatePostData {
@@ -49,6 +50,26 @@ export interface PaginationOptions {
   pageSize?: number;
   onlyPublished?: boolean;
 }
+
+const POST_CACHE_TTL_SECONDS = Number(process.env.POST_CACHE_TTL_SECONDS ?? 300);
+const POST_LIST_CACHE_TTL_SECONDS = Number(process.env.POST_LIST_CACHE_TTL_SECONDS ?? 60);
+
+const postCacheKeys = {
+  byId: (postId: number) => `post:${postId}`,
+  feed: (page: number, pageSize: number, onlyPublished: boolean) =>
+    `posts:feed:published:${onlyPublished}:page:${page}:size:${pageSize}`,
+  byUser: (userId: number, page: number, pageSize: number, onlyPublished: boolean) =>
+    `posts:user:${userId}:published:${onlyPublished}:page:${page}:size:${pageSize}`,
+  ownByUser: (userId: number, page: number, pageSize: number) =>
+    `posts:user:${userId}:own:page:${page}:size:${pageSize}`,
+};
+
+const invalidatePostLists = async (userId: number): Promise<void> => {
+  await Promise.all([
+    cache.delPattern('posts:feed:*'),
+    cache.delPattern(`posts:user:${userId}:*`),
+  ]);
+};
 
 const publishPostEvent = async (
   routingKey: 'post.created' | 'post.updated' | 'post.deleted',
@@ -164,6 +185,10 @@ export class PostService {
     });
 
     const createdPost = this.formatPost(post);
+    await Promise.all([
+      cache.set(postCacheKeys.byId(createdPost.id), createdPost, POST_CACHE_TTL_SECONDS),
+      invalidatePostLists(createdPost.userId),
+    ]);
     await publishPostEvent('post.created', createdPost);
 
     return createdPost;
@@ -184,6 +209,11 @@ export class PostService {
     }
 
     const where = onlyPublished ? { is_published: true } : {};
+    const cacheKey = postCacheKeys.feed(page, pageSize, onlyPublished);
+    const cached = await cache.get<PostsListResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const [posts, total] = await Promise.all([
       this.prisma.posts.findMany({
@@ -195,13 +225,16 @@ export class PostService {
       this.prisma.posts.count({ where }),
     ]);
 
-    return {
+    const result = {
       posts: posts.map(this.formatPost),
       total,
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+
+    await cache.set(cacheKey, result, POST_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // ==================== GET POSTS BY USER ====================
@@ -226,6 +259,11 @@ export class PostService {
       id_user: validUserId,
       ...(onlyPublished && { is_published: true }),
     };
+    const cacheKey = postCacheKeys.byUser(validUserId, page, pageSize, onlyPublished);
+    const cached = await cache.get<PostsListResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const [posts, total] = await Promise.all([
       this.prisma.posts.findMany({
@@ -237,18 +275,26 @@ export class PostService {
       this.prisma.posts.count({ where }),
     ]);
 
-    return {
+    const result = {
       posts: posts.map(this.formatPost),
       total,
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+
+    await cache.set(cacheKey, result, POST_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // ==================== GET POST BY ID ====================
   async getPostById(postId: number): Promise<PostResponse> {
     const validPostId = validateId(postId, 'postId');
+    const cacheKey = postCacheKeys.byId(validPostId);
+    const cached = await cache.get<PostResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const post = await this.prisma.posts.findUnique({
       where: { id_post: validPostId },
@@ -258,7 +304,9 @@ export class PostService {
       throw new PostNotFoundError(validPostId);
     }
 
-    return this.formatPost(post);
+    const result = this.formatPost(post);
+    await cache.set(cacheKey, result, POST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // ==================== UPDATE POST ====================
@@ -304,6 +352,10 @@ export class PostService {
     });
 
     const formattedPost = this.formatPost(updatedPost);
+    await Promise.all([
+      cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, POST_CACHE_TTL_SECONDS),
+      invalidatePostLists(formattedPost.userId),
+    ]);
     await publishPostEvent('post.updated', formattedPost);
 
     return formattedPost;
@@ -333,6 +385,10 @@ export class PostService {
     });
 
     await publishPostEvent('post.deleted', deletedPost);
+    await Promise.all([
+      cache.del(postCacheKeys.byId(deletedPost.id)),
+      invalidatePostLists(deletedPost.userId),
+    ]);
   }
 
   // ==================== PUBLISH POST ====================
@@ -364,7 +420,13 @@ export class PostService {
       },
     });
 
-    return this.formatPost(updatedPost);
+    const formattedPost = this.formatPost(updatedPost);
+    await Promise.all([
+      cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, POST_CACHE_TTL_SECONDS),
+      invalidatePostLists(formattedPost.userId),
+    ]);
+
+    return formattedPost;
   }
 
   // ==================== UNPUBLISH POST (MAKE DRAFT) ====================
@@ -396,7 +458,13 @@ export class PostService {
       },
     });
 
-    return this.formatPost(updatedPost);
+    const formattedPost = this.formatPost(updatedPost);
+    await Promise.all([
+      cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, POST_CACHE_TTL_SECONDS),
+      invalidatePostLists(formattedPost.userId),
+    ]);
+
+    return formattedPost;
   }
 
   // ==================== GET MY POSTS (INCLUDING DRAFTS) ====================
@@ -417,6 +485,11 @@ export class PostService {
     }
 
     const where = { id_user: validUserId };
+    const cacheKey = postCacheKeys.ownByUser(validUserId, page, pageSize);
+    const cached = await cache.get<PostsListResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const [posts, total] = await Promise.all([
       this.prisma.posts.findMany({
@@ -428,13 +501,16 @@ export class PostService {
       this.prisma.posts.count({ where }),
     ]);
 
-    return {
+    const result = {
       posts: posts.map(this.formatPost),
       total,
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+
+    await cache.set(cacheKey, result, POST_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
   // ==================== FORMAT POST ====================

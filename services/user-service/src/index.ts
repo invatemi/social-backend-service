@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/error-handler';
 import { requestLogger } from './middleware/request-logger';
 import { jsonErrorHandler } from './middleware/json-error-handler';
 import { eventBus } from './middleware/event-bus';
+import { cache } from './middleware/redis';
 
 
 if (process.env.NODE_ENV !== 'production') {
@@ -77,6 +78,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 const shutdown = async (signal: string) => {
   console.log(`${signal} received`);
   server.close(async () => {
+    await cache.disconnect();
     await eventBus.disconnect();
     await prisma.$disconnect();
     await pool.end();
