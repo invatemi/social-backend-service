@@ -29,6 +29,100 @@ router.get(
   }
 );
 
+// Входящие заявки в друзья
+router.get(
+  '/requests/incoming',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const userId = req.user!.userId;
+      const result = await friendsService.getIncomingRequests(userId);
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Исходящие заявки в друзья
+router.get(
+  '/requests/outgoing',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const userId = req.user!.userId;
+      const result = await friendsService.getOutgoingRequests(userId);
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Отправить заявку в друзья
+router.post(
+  '/:id/request',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const fromUserId = req.user!.userId;
+      const toUserId = parseInt(String(req.params.id), 10);
+
+      const result = await friendsService.sendFriendRequest(fromUserId, toUserId);
+
+      res.status(201).json({
+        success: true,
+        message: 'Friend request sent',
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Принять заявку в друзья
+router.post(
+  '/requests/:id/accept',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const receiverId = req.user!.userId;
+      const requestId = parseInt(String(req.params.id), 10);
+
+      const result = await friendsService.acceptFriendRequest(receiverId, requestId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Friend request accepted',
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Удалить из друзей
 router.delete(
   '/:id',

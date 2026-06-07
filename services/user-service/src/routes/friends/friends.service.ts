@@ -4,7 +4,11 @@ import {
   UserNotFoundError,
   SelfFriendError,
   NotFriendsError,
+  AlreadyFriendsError,
+  FriendRequestAlreadyExistsError,
+  FriendRequestNotFoundError,
 } from './friends.errors';
+import { eventBus, UserSummary } from '../../middleware/event-bus';
 
 export interface FriendData {
   id: number;
@@ -20,6 +24,15 @@ export interface FriendsResponse {
   total: number;
 }
 
+export interface FriendRequestData {
+  id: number;
+  fromUser: UserSummary;
+  toUser: UserSummary;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 const validateUserId = (userId: unknown): number => {
   const id = Number(userId);
   if (isNaN(id) || !Number.isInteger(id) || id <= 0) {
@@ -28,8 +41,256 @@ const validateUserId = (userId: unknown): number => {
   return id;
 };
 
+const userSummarySelect = {
+  id: true,
+  name: true,
+  email: true,
+  avatarUrl: true,
+} as const;
+
+const formatFriendRequest = (request: {
+  id: number;
+  from: UserSummary;
+  to: UserSummary;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}): FriendRequestData => ({
+  id: request.id,
+  fromUser: request.from,
+  toUser: request.to,
+  status: request.status,
+  createdAt: request.createdAt,
+  updatedAt: request.updatedAt,
+});
+
+const publishFriendEvent = async (
+  routingKey: 'friend.requested' | 'friend.accepted' | 'friend.removed',
+  payload: Parameters<typeof eventBus.publish>[1]
+): Promise<void> => {
+  try {
+    await eventBus.publish(routingKey, payload);
+  } catch (error) {
+    console.log(`[EventBus] Failed to publish ${routingKey}:`, error);
+  }
+};
+
 export class FriendsService {
   constructor(private prisma: PrismaClient) {}
+
+  // Отправить заявку в друзья и автоматически подписать заявителя
+  async sendFriendRequest(
+    fromUserId: number,
+    toUserId: number
+  ): Promise<{ request: FriendRequestData; movedToFollowing: boolean }> {
+    const fromId = validateUserId(fromUserId);
+    const toId = validateUserId(toUserId);
+
+    if (fromId === toId) throw new SelfFriendError();
+
+    const [fromUser, toUser] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: fromId }, select: userSummarySelect }),
+      this.prisma.user.findUnique({ where: { id: toId }, select: userSummarySelect }),
+    ]);
+    if (!fromUser) throw new UserNotFoundError(fromId);
+    if (!toUser) throw new UserNotFoundError(toId);
+
+    const friendship = await this.prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: fromId, friendId: toId },
+          { userId: toId, friendId: fromId },
+        ],
+      },
+    });
+    if (friendship) throw new AlreadyFriendsError();
+
+    const existingRequest = await this.prisma.friendRequest.findFirst({
+      where: { fromUserId: fromId, toUserId: toId },
+    });
+
+    if (existingRequest?.status === 'pending') {
+      throw new FriendRequestAlreadyExistsError();
+    }
+
+    const request = await this.prisma.$transaction(async (tx) => {
+      const nextRequest = existingRequest
+        ? await tx.friendRequest.update({
+            where: { id: existingRequest.id },
+            data: { status: 'pending', updatedAt: new Date() },
+            include: {
+              from: { select: userSummarySelect },
+              to: { select: userSummarySelect },
+            },
+          })
+        : await tx.friendRequest.create({
+            data: { fromUserId: fromId, toUserId: toId },
+            include: {
+              from: { select: userSummarySelect },
+              to: { select: userSummarySelect },
+            },
+          });
+
+      await tx.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: fromId,
+            followingId: toId,
+          },
+        },
+        update: {},
+        create: {
+          followerId: fromId,
+          followingId: toId,
+        },
+      });
+
+      return nextRequest;
+    });
+
+    await publishFriendEvent('friend.requested', {
+      requestId: request.id,
+      fromUser,
+      toUser,
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      request: formatFriendRequest(request),
+      movedToFollowing: true,
+    };
+  }
+
+  async acceptFriendRequest(
+    receiverId: number,
+    requestId: number
+  ): Promise<{ request: FriendRequestData; friendshipId: number }> {
+    const userId = validateUserId(receiverId);
+    const friendRequestId = validateUserId(requestId);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const request = await tx.friendRequest.findFirst({
+        where: {
+          id: friendRequestId,
+          toUserId: userId,
+          status: 'pending',
+        },
+        include: {
+          from: { select: userSummarySelect },
+          to: { select: userSummarySelect },
+        },
+      });
+
+      if (!request) {
+        throw new FriendRequestNotFoundError();
+      }
+
+      const existingFriendship = await tx.friendship.findFirst({
+        where: {
+          OR: [
+            { userId: request.fromUserId, friendId: request.toUserId },
+            { userId: request.toUserId, friendId: request.fromUserId },
+          ],
+        },
+      });
+
+      const friendship =
+        existingFriendship ??
+        (await tx.friendship.create({
+          data: {
+            userId: request.fromUserId,
+            friendId: request.toUserId,
+          },
+        }));
+
+      const updatedRequest = await tx.friendRequest.update({
+        where: { id: request.id },
+        data: { status: 'accepted', updatedAt: new Date() },
+        include: {
+          from: { select: userSummarySelect },
+          to: { select: userSummarySelect },
+        },
+      });
+
+      await tx.friendRequest.deleteMany({
+        where: {
+          OR: [
+            {
+              fromUserId: request.toUserId,
+              toUserId: request.fromUserId,
+              status: 'pending',
+            },
+            {
+              fromUserId: request.fromUserId,
+              toUserId: request.toUserId,
+              status: 'pending',
+            },
+          ],
+          NOT: { id: request.id },
+        },
+      });
+
+      await tx.follow.deleteMany({
+        where: {
+          OR: [
+            { followerId: request.fromUserId, followingId: request.toUserId },
+            { followerId: request.toUserId, followingId: request.fromUserId },
+          ],
+        },
+      });
+
+      return { request: updatedRequest, friendship };
+    });
+
+    await publishFriendEvent('friend.accepted', {
+      requestId: result.request.id,
+      friendshipId: result.friendship.id,
+      fromUser: result.request.from,
+      toUser: result.request.to,
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      request: formatFriendRequest(result.request),
+      friendshipId: result.friendship.id,
+    };
+  }
+
+  async getIncomingRequests(userId: number): Promise<{ requests: FriendRequestData[]; total: number }> {
+    const id = validateUserId(userId);
+
+    const requests = await this.prisma.friendRequest.findMany({
+      where: { toUserId: id, status: 'pending' },
+      include: {
+        from: { select: userSummarySelect },
+        to: { select: userSummarySelect },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      requests: requests.map(formatFriendRequest),
+      total: requests.length,
+    };
+  }
+
+  async getOutgoingRequests(userId: number): Promise<{ requests: FriendRequestData[]; total: number }> {
+    const id = validateUserId(userId);
+
+    const requests = await this.prisma.friendRequest.findMany({
+      where: { fromUserId: id, status: 'pending' },
+      include: {
+        from: { select: userSummarySelect },
+        to: { select: userSummarySelect },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      requests: requests.map(formatFriendRequest),
+      total: requests.length,
+    };
+  }
 
   // Получить список друзей пользователя
   async getFriends(userId: number): Promise<FriendsResponse> {
@@ -88,8 +349,8 @@ export class FriendsService {
     if (initId === targId) throw new SelfFriendError();
 
     const [initiator, target] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: initId }, select: { id: true } }),
-      this.prisma.user.findUnique({ where: { id: targId }, select: { id: true } }),
+      this.prisma.user.findUnique({ where: { id: initId }, select: userSummarySelect }),
+      this.prisma.user.findUnique({ where: { id: targId }, select: userSummarySelect }),
     ]);
     if (!initiator) throw new UserNotFoundError(initId);
     if (!target) throw new UserNotFoundError(targId);
@@ -123,6 +384,13 @@ export class FriendsService {
         },
       }),
     ]);
+
+    await publishFriendEvent('friend.removed', {
+      initiatorUser: initiator,
+      targetUser: target,
+      movedToFollowing: true,
+      timestamp: new Date().toISOString(),
+    });
 
     return { movedToFollowing: true };
   }

@@ -83,8 +83,10 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${USER_DB_HOST}:5432/${USER_DB_NAME}?schema=public"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672"
     depends_on:
       user-db: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://127.0.0.1:3002/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1)).setTimeout(2000,()=>process.exit(1))\""]
       interval: 10s

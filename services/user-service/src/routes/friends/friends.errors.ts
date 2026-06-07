@@ -46,6 +46,22 @@ export class AlreadyFriendsError extends FriendError {
   }
 }
 
+// Заявка в друзья уже ожидает решения (409 Conflict)
+export class FriendRequestAlreadyExistsError extends FriendError {
+  constructor() {
+    super('Friend request already exists', 'FRIEND_REQUEST_ALREADY_EXISTS');
+    this.name = 'FriendRequestAlreadyExistsError';
+  }
+}
+
+// Заявка в друзья не найдена (404 Not Found)
+export class FriendRequestNotFoundError extends FriendError {
+  constructor() {
+    super('Friend request not found', 'FRIEND_REQUEST_NOT_FOUND');
+    this.name = 'FriendRequestNotFoundError';
+  }
+}
+
 // Ошибка аутентификации (401 Unauthorized)
 export class UnauthorizedError extends FriendError {
   constructor(message: string = 'Authentication required') {

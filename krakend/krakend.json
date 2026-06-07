@@ -68,7 +68,7 @@
       "input_headers": ["Authorization", "Content-Type"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/me/followers"
+        "url_pattern": "/api/followers/me/followers"
       }]
     },
     {
@@ -77,7 +77,7 @@
       "input_headers": ["Authorization", "Content-Type"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/me/following"
+        "url_pattern": "/api/followers/me/following"
       }]
     },
     {
@@ -86,7 +86,7 @@
       "input_headers": ["Authorization", "Content-Type"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/me/is-following/{id}"
+        "url_pattern": "/api/followers/me/is-following/{id}"
       }]
     },
     {
@@ -96,7 +96,7 @@
       "input_headers": ["*"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/{id}/followers"
+        "url_pattern": "/api/followers/{id}/followers"
       }]
     },
     {
@@ -106,7 +106,7 @@
       "input_headers": ["*"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/{id}/following"
+        "url_pattern": "/api/followers/{id}/following"
       }]
     },
     {
@@ -116,7 +116,7 @@
       "input_headers": ["*"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/{id}/counts"
+        "url_pattern": "/api/followers/{id}/counts"
       }]
     },
     {
@@ -125,7 +125,7 @@
       "input_headers": ["Authorization", "Content-Type"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/{id}/follow"
+        "url_pattern": "/api/followers/{id}/follow"
       }]
     },
     {
@@ -134,7 +134,7 @@
       "input_headers": ["Authorization", "Content-Type"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/{id}/follow"
+        "url_pattern": "/api/followers/{id}/follow"
       }]
     },
     {
@@ -143,7 +143,7 @@
       "input_headers": ["Authorization", "Content-Type"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/me/friends"
+        "url_pattern": "/api/friends/me"
       }]
     },
     {
@@ -152,7 +152,7 @@
       "input_headers": ["Authorization", "Content-Type"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/me/friends/{id}"
+        "url_pattern": "/api/friends/{id}"
       }]
     },
     {
@@ -161,7 +161,7 @@
       "input_headers": ["Authorization", "Content-Type"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/me/is-friends/{id}"
+        "url_pattern": "/api/friends/me/is-friends/{id}"
       }]
     },
     {
@@ -171,7 +171,7 @@
       "input_headers": ["*"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/{id}/friends"
+        "url_pattern": "/api/friends/{id}"
       }]
     },
     {
@@ -181,7 +181,52 @@
       "input_headers": ["*"],
       "backend": [{
         "host": ["http://social-user-service:3002"],
-        "url_pattern": "/api/users/{id}/friends/count"
+        "url_pattern": "/api/friends/{id}/count"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me",
+      "method": "PATCH",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/users/me"
+      }]
+    },
+    {
+      "endpoint": "/api/users/{id}/friends/request",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/friends/{id}/request"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me/friends/requests/incoming",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/friends/requests/incoming"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me/friends/requests/outgoing",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/friends/requests/outgoing"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me/friends/requests/{id}/accept",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/friends/requests/{id}/accept"
       }]
     },
     {
@@ -350,6 +395,44 @@
       "backend": [{
         "host": ["http://social-notifications-service:3005"],
         "url_pattern": "/health"
+      }]
+    },
+    {
+      "endpoint": "/api/notifications",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-notifications-service:3005"],
+        "url_pattern": "/api/notifications"
+      }]
+    },
+    {
+      "endpoint": "/api/notifications/stream",
+      "method": "GET",
+      "input_headers": ["Authorization"],
+      "output_encoding": "no-op",
+      "backend": [{
+        "host": ["http://social-notifications-service:3005"],
+        "url_pattern": "/api/notifications/stream",
+        "encoding": "no-op"
+      }]
+    },
+    {
+      "endpoint": "/api/notifications/read-all",
+      "method": "PATCH",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-notifications-service:3005"],
+        "url_pattern": "/api/notifications/read-all"
+      }]
+    },
+    {
+      "endpoint": "/api/notifications/{id}/read",
+      "method": "PATCH",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-notifications-service:3005"],
+        "url_pattern": "/api/notifications/{id}/read"
       }]
     }
   ],

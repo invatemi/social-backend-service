@@ -1,4 +1,6 @@
 import express from 'express';
+import { PrismaClient } from './generated/prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { registerCommentCreatedConsumer } from './consumers/comment-created.consumer';
 import { registerCommentDeletedConsumer } from './consumers/comment-deleted.consumer';
@@ -6,25 +8,19 @@ import { registerCommentUpdatedConsumer } from './consumers/comment-updated.cons
 import { registerPostCreatedConsumer } from './consumers/post-created.consumer';
 import { registerPostDeletedConsumer } from './consumers/post-deleted.consumer';
 import { registerPostUpdatedConsumer } from './consumers/post-updated.consumer';
+import { registerUserEventConsumers } from './consumers/user-events.consumer';
 import { eventBus } from './middleware/event-bus';
+import notificationRoutes from './routes/notifications/endpoints';
 
 const app = express();
-
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'ok', 
-    service: process.env.npm_package_name || 'unknown',
-    port: process.env.PORT 
-  });
-});
+app.use(express.json());
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+  connectionString: process.env.DATABASE_URL,
 });
+
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 async function connectWithRetry(maxAttempts = 10, delayMs = 2000): Promise<boolean> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -47,14 +43,31 @@ async function connectWithRetry(maxAttempts = 10, delayMs = 2000): Promise<boole
   return false;
 }
 
-app.get('/api/users', async (req, res) => {
+app.get('/health', async (_req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM users');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(503).json({ error: 'Database unavailable' });
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({
+      status: 'ok',
+      service: process.env.npm_package_name || 'unknown',
+      database: 'connected',
+      port: process.env.PORT,
+      timestamp: new Date().toISOString(),
+    });
+  } catch {
+    res.status(503).json({
+      status: 'degraded',
+      service: process.env.npm_package_name || 'unknown',
+      database: 'disconnected',
+      port: process.env.PORT,
+      timestamp: new Date().toISOString(),
+    });
   }
 });
+
+app.use('/api/notifications', (req, res, next) => {
+  (req as any).prisma = prisma;
+  next();
+}, notificationRoutes);
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
@@ -69,6 +82,7 @@ const start = async (): Promise<void> => {
     registerPostCreatedConsumer(),
     registerPostUpdatedConsumer(),
     registerPostDeletedConsumer(),
+    registerUserEventConsumers(prisma),
   ]);
 
   const server = app.listen(PORT, '0.0.0.0', () => {
@@ -88,6 +102,7 @@ const start = async (): Promise<void> => {
     server.close(async () => {
       try {
         await eventBus.disconnect();
+        await prisma.$disconnect();
         await pool.end();
         process.exit(0);
       } catch (error) {

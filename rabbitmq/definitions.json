@@ -30,6 +30,15 @@
       "auto_delete": false,
       "internal": false,
       "arguments": {}
+    },
+    {
+      "name": "user.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
     }
   ],
   "queues": [
@@ -86,6 +95,60 @@
       "arguments": {
         "x-queue-type": "classic"
       }
+    },
+    {
+      "name": "notifications.user.friend.requested",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.user.friend.accepted",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.user.friend.removed",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.user.follow.created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.user.follow.deleted",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.user.updated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
     }
   ],
   "bindings": [
@@ -135,6 +198,54 @@
       "destination": "notifications.post.deleted",
       "destination_type": "queue",
       "routing_key": "post.deleted",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.friend.requested",
+      "destination_type": "queue",
+      "routing_key": "friend.requested",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.friend.accepted",
+      "destination_type": "queue",
+      "routing_key": "friend.accepted",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.friend.removed",
+      "destination_type": "queue",
+      "routing_key": "friend.removed",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.follow.created",
+      "destination_type": "queue",
+      "routing_key": "follow.created",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.follow.deleted",
+      "destination_type": "queue",
+      "routing_key": "follow.deleted",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.updated",
+      "destination_type": "queue",
+      "routing_key": "user.updated",
       "arguments": {}
     }
   ]

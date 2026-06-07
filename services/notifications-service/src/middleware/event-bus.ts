@@ -3,6 +3,19 @@ import type { Channel, ConsumeMessage } from 'amqplib';
 
 type AmqpConnection = Awaited<ReturnType<typeof amqp.connect>>;
 
+const DEFAULT_CONNECT_MAX_ATTEMPTS = 30;
+const DEFAULT_CONNECT_RETRY_DELAY_MS = 2000;
+const MAX_CONNECT_RETRY_DELAY_MS = 10000;
+
+const sleep = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, delayMs));
+
+const getPositiveIntegerEnv = (name: string, fallback: number): number => {
+  const value = Number.parseInt(process.env[name] ?? '', 10);
+
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+};
+
 export interface MessageControls {
   ack: () => void;
   nack: (requeue?: boolean) => void;
@@ -46,32 +59,59 @@ export class EventBus {
       throw new Error('RABBITMQ_URL is not configured');
     }
 
-    try {
-      this.connection = await amqp.connect(rabbitMqUrl);
+    const maxAttempts = getPositiveIntegerEnv(
+      'RABBITMQ_CONNECT_MAX_ATTEMPTS',
+      DEFAULT_CONNECT_MAX_ATTEMPTS
+    );
+    const retryDelayMs = getPositiveIntegerEnv(
+      'RABBITMQ_CONNECT_RETRY_DELAY_MS',
+      DEFAULT_CONNECT_RETRY_DELAY_MS
+    );
 
-      this.connection.on('error', (error) => {
-        console.log('[EventBus] Connection error:', error);
-      });
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        this.connection = await amqp.connect(rabbitMqUrl);
 
-      this.connection.on('close', () => {
-        console.log('[EventBus] Connection closed');
+        this.connection.on('error', (error) => {
+          console.log('[EventBus] Connection error:', error);
+        });
+
+        this.connection.on('close', () => {
+          console.log('[EventBus] Connection closed');
+          this.connection = null;
+          this.channel = null;
+        });
+
+        this.channel = await this.connection.createChannel();
+        await this.channel.prefetch(10);
+
+        this.channel.on('error', (error) => {
+          console.log('[EventBus] Channel error:', error);
+        });
+
+        console.log('[EventBus] Connected to RabbitMQ');
+        return;
+      } catch (error) {
         this.connection = null;
         this.channel = null;
-      });
 
-      this.channel = await this.connection.createChannel();
-      await this.channel.prefetch(10);
+        if (attempt === maxAttempts) {
+          console.log('[EventBus] Failed to connect to RabbitMQ:', error);
+          throw error;
+        }
 
-      this.channel.on('error', (error) => {
-        console.log('[EventBus] Channel error:', error);
-      });
+        const nextDelayMs = Math.min(
+          retryDelayMs * attempt,
+          MAX_CONNECT_RETRY_DELAY_MS
+        );
 
-      console.log('[EventBus] Connected to RabbitMQ');
-    } catch (error) {
-      this.connection = null;
-      this.channel = null;
-      console.log('[EventBus] Failed to connect to RabbitMQ:', error);
-      throw error;
+        console.warn(
+          `[EventBus] RabbitMQ connection attempt ${attempt}/${maxAttempts} failed. Retrying in ${nextDelayMs}ms:`,
+          error
+        );
+
+        await sleep(nextDelayMs);
+      }
     }
   }
 

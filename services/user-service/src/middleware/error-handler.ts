@@ -18,6 +18,8 @@ import {
   SelfFriendError,
   NotFriendsError,
   AlreadyFriendsError,
+  FriendRequestAlreadyExistsError,
+  FriendRequestNotFoundError,
   UnauthorizedError as FriendsUnauthorizedError,
 } from '../routes/friends/friends.errors';
 
@@ -70,6 +72,14 @@ export const errorHandler = (
     errorCode = 'ALREADY_FRIENDS';
     errorMessage = err.message;
   } 
+  else if (err instanceof FriendRequestAlreadyExistsError) {
+    errorCode = 'FRIEND_REQUEST_ALREADY_EXISTS';
+    errorMessage = err.message;
+  }
+  else if (err instanceof FriendRequestNotFoundError) {
+    errorCode = 'FRIEND_REQUEST_NOT_FOUND';
+    errorMessage = err.message;
+  }
   //Ошибки аутентификации
   else if (err instanceof FollowersUnauthorizedError || err instanceof FriendsUnauthorizedError) {
     errorCode = 'UNAUTHORIZED';

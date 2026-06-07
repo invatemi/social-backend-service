@@ -4,9 +4,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import followersRoutes from './routes/followers/endpoints';
 import friendsRoutes from './routes/friends/endpoints';
+import profileRoutes from './routes/profile/endpoints';
 import { errorHandler } from './middleware/error-handler';
 import { requestLogger } from './middleware/request-logger';
 import { jsonErrorHandler } from './middleware/json-error-handler';
+import { eventBus } from './middleware/event-bus';
 
 
 if (process.env.NODE_ENV !== 'production') {
@@ -38,6 +40,11 @@ app.use('/api/friends', (req, res, next) => {
   next();
 }, friendsRoutes);
 
+app.use('/api/users', (req, res, next) => {
+  (req as any).prisma = prisma;
+  next();
+}, profileRoutes);
+
 app.use(errorHandler);
 
 app.get('/health', async (_req, res) => {
@@ -59,6 +66,10 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+void eventBus.connect().catch((error) => {
+  console.log('[EventBus] RabbitMQ startup connection failed:', error);
+});
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Service running on port ${PORT}`);
 });
@@ -66,6 +77,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 const shutdown = async (signal: string) => {
   console.log(`${signal} received`);
   server.close(async () => {
+    await eventBus.disconnect();
     await prisma.$disconnect();
     await pool.end();
     process.exit(0);

@@ -6,6 +6,7 @@ import {
   AlreadyFollowingError,
   NotFollowingError,
 } from './followers.errors';
+import { eventBus, UserSummary } from '../../middleware/event-bus';
 
 export interface FollowerData {
   id: number;
@@ -33,6 +34,29 @@ const validateUserId = (userId: unknown): number => {
     throw new ValidationError('Invalid user ID', 'userId');
   }
   return id;
+};
+
+const userSummarySelect = {
+  id: true,
+  name: true,
+  email: true,
+  avatarUrl: true,
+} as const;
+
+const publishFollowEvent = async (
+  routingKey: 'follow.created' | 'follow.deleted',
+  followerUser: UserSummary,
+  followingUser: UserSummary
+): Promise<void> => {
+  try {
+    await eventBus.publish(routingKey, {
+      followerUser,
+      followingUser,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.log(`[EventBus] Failed to publish ${routingKey}:`, error);
+  }
 };
 
 export class FollowersService {
@@ -110,8 +134,8 @@ export class FollowersService {
     if (fid === gid) throw new SelfFollowError();
 
     const [follower, following] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: fid }, select: { id: true } }),
-      this.prisma.user.findUnique({ where: { id: gid }, select: { id: true } }),
+      this.prisma.user.findUnique({ where: { id: fid }, select: userSummarySelect }),
+      this.prisma.user.findUnique({ where: { id: gid }, select: userSummarySelect }),
     ]);
     if (!follower) throw new UserNotFoundError(fid);
     if (!following) throw new UserNotFoundError(gid);
@@ -124,6 +148,8 @@ export class FollowersService {
     await this.prisma.follow.create({
       data: { followerId: fid, followingId: gid },
     });
+
+    await publishFollowEvent('follow.created', follower, following);
   }
 
   // Отписаться
@@ -135,12 +161,22 @@ export class FollowersService {
 
     const existing = await this.prisma.follow.findUnique({
       where: { followerId_followingId: { followerId: fid, followingId: gid } },
+      select: {
+        follower: { select: userSummarySelect },
+        following: { select: userSummarySelect },
+      },
     });
     if (!existing) throw new NotFollowingError();
 
     await this.prisma.follow.delete({
       where: { followerId_followingId: { followerId: fid, followingId: gid } },
     });
+
+    await publishFollowEvent(
+      'follow.deleted',
+      existing.follower,
+      existing.following
+    );
   }
 
   // Проверить подписку

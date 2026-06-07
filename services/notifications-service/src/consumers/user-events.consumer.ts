@@ -1,0 +1,223 @@
+import { z } from 'zod';
+import { PrismaClient } from '../generated/prisma/client';
+import { eventBus } from '../middleware/event-bus';
+import { NotificationsService } from '../routes/notifications/notifications.service';
+
+const userSummarySchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string().min(1),
+  email: z.string().email().optional(),
+  avatarUrl: z.string().nullable().optional(),
+});
+
+const friendRequestedSchema = z.object({
+  requestId: z.number().int().positive(),
+  fromUser: userSummarySchema,
+  toUser: userSummarySchema,
+  timestamp: z.string().datetime(),
+});
+
+const friendAcceptedSchema = z.object({
+  requestId: z.number().int().positive(),
+  friendshipId: z.number().int().positive(),
+  fromUser: userSummarySchema,
+  toUser: userSummarySchema,
+  timestamp: z.string().datetime(),
+});
+
+const friendRemovedSchema = z.object({
+  initiatorUser: userSummarySchema,
+  targetUser: userSummarySchema,
+  movedToFollowing: z.boolean(),
+  timestamp: z.string().datetime(),
+});
+
+const followSchema = z.object({
+  followerUser: userSummarySchema,
+  followingUser: userSummarySchema,
+  timestamp: z.string().datetime(),
+});
+
+const userUpdatedSchema = z.object({
+  userId: z.number().int().positive(),
+  changedFields: z.array(z.string().min(1)),
+  user: userSummarySchema.extend({
+    bio: z.string().nullable().optional(),
+    location: z.string().nullable().optional(),
+  }),
+  timestamp: z.string().datetime(),
+});
+
+const parseMessage = <T>(schema: z.ZodType<T>, content: Buffer): T => {
+  const payload = JSON.parse(content.toString('utf8')) as unknown;
+
+  return schema.parse(payload);
+};
+
+export const registerUserEventConsumers = async (
+  prisma: PrismaClient
+): Promise<void> => {
+  const notificationsService = new NotificationsService(prisma);
+
+  await eventBus.subscribe(
+    'notifications.user.friend.requested',
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(friendRequestedSchema, message.content);
+
+        await notificationsService.createNotification({
+          recipientUserId: event.toUser.id,
+          actorUserId: event.fromUser.id,
+          type: 'FRIEND_REQUESTED',
+          title: 'New friend request',
+          body: `${event.fromUser.name} sent you a friend request`,
+          payload: event,
+        });
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:friend.requested] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'user.events',
+      routingKey: 'friend.requested',
+    }
+  );
+
+  await eventBus.subscribe(
+    'notifications.user.friend.accepted',
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(friendAcceptedSchema, message.content);
+
+        await notificationsService.createNotification({
+          recipientUserId: event.fromUser.id,
+          actorUserId: event.toUser.id,
+          type: 'FRIEND_ACCEPTED',
+          title: 'Friend request accepted',
+          body: `${event.toUser.name} accepted your friend request`,
+          payload: event,
+        });
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:friend.accepted] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'user.events',
+      routingKey: 'friend.accepted',
+    }
+  );
+
+  await eventBus.subscribe(
+    'notifications.user.friend.removed',
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(friendRemovedSchema, message.content);
+
+        await notificationsService.createNotification({
+          recipientUserId: event.targetUser.id,
+          actorUserId: event.initiatorUser.id,
+          type: 'FRIEND_REMOVED',
+          title: 'Friend removed',
+          body: `${event.initiatorUser.name} removed you from friends`,
+          payload: event,
+        });
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:friend.removed] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'user.events',
+      routingKey: 'friend.removed',
+    }
+  );
+
+  await eventBus.subscribe(
+    'notifications.user.follow.created',
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(followSchema, message.content);
+
+        await notificationsService.createNotification({
+          recipientUserId: event.followingUser.id,
+          actorUserId: event.followerUser.id,
+          type: 'FOLLOW_CREATED',
+          title: 'New follower',
+          body: `${event.followerUser.name} started following you`,
+          payload: event,
+        });
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:follow.created] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'user.events',
+      routingKey: 'follow.created',
+    }
+  );
+
+  await eventBus.subscribe(
+    'notifications.user.follow.deleted',
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(followSchema, message.content);
+
+        await notificationsService.createNotification({
+          recipientUserId: event.followingUser.id,
+          actorUserId: event.followerUser.id,
+          type: 'FOLLOW_DELETED',
+          title: 'Follower removed',
+          body: `${event.followerUser.name} stopped following you`,
+          payload: event,
+        });
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:follow.deleted] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'user.events',
+      routingKey: 'follow.deleted',
+    }
+  );
+
+  await eventBus.subscribe(
+    'notifications.user.updated',
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(userUpdatedSchema, message.content);
+
+        await notificationsService.createNotification({
+          recipientUserId: event.userId,
+          actorUserId: event.userId,
+          type: 'USER_UPDATED',
+          title: 'Profile updated',
+          body: `Profile fields updated: ${event.changedFields.join(', ')}`,
+          payload: event,
+        });
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:user.updated] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'user.events',
+      routingKey: 'user.updated',
+    }
+  );
+};
