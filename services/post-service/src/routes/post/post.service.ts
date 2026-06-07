@@ -1,4 +1,5 @@
-import { PrismaClient } from '../../generated/prisma/client';
+import type { PrismaClient } from '@prisma/client/index';
+import { eventBus } from '../../middleware/event-bus';
 import {
   PostValidationError,
   PostNotFoundError,
@@ -48,6 +49,25 @@ export interface PaginationOptions {
   pageSize?: number;
   onlyPublished?: boolean;
 }
+
+const publishPostEvent = async (
+  routingKey: 'post.created' | 'post.updated' | 'post.deleted',
+  post: PostResponse
+): Promise<void> => {
+  try {
+    await eventBus.publish(routingKey, {
+      postId: post.id,
+      userId: post.userId,
+      title: post.title,
+      content: post.content,
+      imageUrl: post.imageUrl,
+      isPublished: post.isPublished,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.log(`[EventBus] Failed to publish ${routingKey}:`, error);
+  }
+};
 
 // ==================== VALIDATION HELPERS ====================
 const validateId = (value: unknown, fieldName: string): number => {
@@ -143,7 +163,10 @@ export class PostService {
       },
     });
 
-    return this.formatPost(post);
+    const createdPost = this.formatPost(post);
+    await publishPostEvent('post.created', createdPost);
+
+    return createdPost;
   }
 
   // ==================== GET ALL POSTS (FEED) ====================
@@ -280,7 +303,10 @@ export class PostService {
       data: updateData,
     });
 
-    return this.formatPost(updatedPost);
+    const formattedPost = this.formatPost(updatedPost);
+    await publishPostEvent('post.updated', formattedPost);
+
+    return formattedPost;
   }
 
   // ==================== DELETE POST ====================
@@ -300,9 +326,13 @@ export class PostService {
       throw new PostForbiddenError('You can only delete your own posts');
     }
 
+    const deletedPost = this.formatPost(post);
+
     await this.prisma.posts.delete({
       where: { id_post: validPostId },
     });
+
+    await publishPostEvent('post.deleted', deletedPost);
   }
 
   // ==================== PUBLISH POST ====================

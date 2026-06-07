@@ -59,6 +59,33 @@
       "arguments": {
         "x-queue-type": "classic"
       }
+    },
+    {
+      "name": "notifications.post.created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.post.updated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.post.deleted",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
     }
   ],
   "bindings": [
@@ -84,6 +111,30 @@
       "destination": "notifications.comment.deleted",
       "destination_type": "queue",
       "routing_key": "comment.deleted",
+      "arguments": {}
+    },
+    {
+      "source": "post.events",
+      "vhost": "/",
+      "destination": "notifications.post.created",
+      "destination_type": "queue",
+      "routing_key": "post.created",
+      "arguments": {}
+    },
+    {
+      "source": "post.events",
+      "vhost": "/",
+      "destination": "notifications.post.updated",
+      "destination_type": "queue",
+      "routing_key": "post.updated",
+      "arguments": {}
+    },
+    {
+      "source": "post.events",
+      "vhost": "/",
+      "destination": "notifications.post.deleted",
+      "destination_type": "queue",
+      "routing_key": "post.deleted",
       "arguments": {}
     }
   ]

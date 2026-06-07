@@ -1,4 +1,5 @@
-import { PrismaClient } from '../../generated/prisma/client';
+import type { PrismaClient } from '@prisma/client/index';
+import { eventBus } from '../../middleware/event-bus';
 import {
   ValidationError,
   CommentNotFoundError,
@@ -70,6 +71,23 @@ const formatComment = (comment: any): CommentResponse => ({
   createdAt: comment.created_at,
 });
 
+const publishCommentEvent = async (
+  routingKey: 'comment.created' | 'comment.updated' | 'comment.deleted',
+  comment: CommentResponse
+): Promise<void> => {
+  try {
+    await eventBus.publish(routingKey, {
+      commentId: comment.id,
+      postId: comment.postId,
+      userId: comment.userId,
+      content: comment.content,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.log(`[EventBus] Failed to publish ${routingKey}:`, error);
+  }
+};
+
 // ==================== COMMENT SERVICE ====================
 export class CommentService {
   constructor(private prisma: PrismaClient) {}
@@ -108,7 +126,10 @@ export class CommentService {
       },
     });
 
-    return formatComment(comment);
+    const createdComment = formatComment(comment);
+    await publishCommentEvent('comment.created', createdComment);
+
+    return createdComment;
   }
 
   // ==================== GET COMMENTS BY POST ====================
@@ -183,7 +204,10 @@ export class CommentService {
       data: { content },
     });
 
-    return formatComment(updatedComment);
+    const formattedComment = formatComment(updatedComment);
+    await publishCommentEvent('comment.updated', formattedComment);
+
+    return formattedComment;
   }
 
   // ==================== DELETE COMMENT ====================
@@ -205,6 +229,8 @@ export class CommentService {
       throw new ForbiddenError('You can only delete your own comments');
     }
 
+    const deletedComment = formatComment(comment);
+
     // Удаляем комментарий
     await this.prisma.comments.delete({
       where: { id_comment: validCommentId },
@@ -218,6 +244,8 @@ export class CommentService {
         updated_at: new Date(),
       },
     });
+
+    await publishCommentEvent('comment.deleted', deletedComment);
   }
 
   // ==================== GET COMMENTS COUNT ====================
