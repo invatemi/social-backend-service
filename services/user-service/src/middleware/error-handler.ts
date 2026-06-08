@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
 
 import {
   UserError,
@@ -22,6 +23,8 @@ import {
   FriendRequestNotFoundError,
   UnauthorizedError as FriendsUnauthorizedError,
 } from '../routes/friends/friends.errors';
+import { PaginationValidationError } from '../utils/pagination';
+import { AvatarUploadConfigurationError } from '../routes/profile/profile.service';
 
 /** Maps user-domain errors to HTTP responses. */
 export const errorHandler = (
@@ -38,7 +41,17 @@ export const errorHandler = (
   let statusCode = 500;
 
   //Ошибки валидации
-  if (err instanceof FollowersValidationError || err instanceof FriendsValidationError) {
+  if (err instanceof ZodError) {
+    statusCode = 400;
+    errorCode = 'VALIDATION_ERROR';
+    errorMessage = err.issues[0]?.message ?? 'Invalid request data';
+    errorField = err.issues[0]?.path.join('.') ?? null;
+  }
+  else if (
+    err instanceof FollowersValidationError ||
+    err instanceof FriendsValidationError ||
+    err instanceof PaginationValidationError
+  ) {
     statusCode = 400;
     errorCode = 'VALIDATION_ERROR';
     errorMessage = err.message;
@@ -104,6 +117,11 @@ export const errorHandler = (
     errorCode = 'FORBIDDEN';
     errorMessage = err.message;
   } 
+  else if (err instanceof AvatarUploadConfigurationError) {
+    statusCode = 500;
+    errorCode = 'CONFIGURATION_ERROR';
+    errorMessage = err.message;
+  }
   //Обработка базовых классов
   else if (err instanceof UserError) {
     statusCode = 400;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { PrismaClient } from '../../generated/prisma';
 import { KrakenDRequest, krakendAuthMiddleware } from '../../middleware/krakend-auth';
 import { ProfileService } from './profile.service';
+import { parsePaginationQuery } from '../../utils/pagination';
 
 const router = Router();
 
@@ -15,6 +16,32 @@ const updateProfileSchema = z
     location: z.string().trim().max(100).nullable().optional(),
   })
   .strict();
+
+const avatarUploadUrlQuerySchema = z
+  .object({
+    contentType: z.string().trim().startsWith('image/').max(100).optional(),
+    fileName: z.string().trim().max(120).optional(),
+  })
+  .strict();
+
+router.get(
+  '/me',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const profileService = new ProfileService(prisma);
+      const user = await profileService.getProfile(req.user!.userId);
+
+      res.status(200).json({
+        success: true,
+        user,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.patch(
   '/me',
@@ -36,5 +63,56 @@ router.patch(
     }
   }
 );
+
+router.get(
+  '/me/avatar-upload-url',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const profileService = new ProfileService(prisma);
+      const input = avatarUploadUrlQuerySchema.parse(req.query);
+      const result = await profileService.getAvatarUploadUrl(req.user!.userId, input);
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get('/search', async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma = (req as any).prisma as PrismaClient;
+    const profileService = new ProfileService(prisma);
+    const result = await profileService.searchUsers(req.query.q, parsePaginationQuery(req.query));
+
+    res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id', async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma = (req as any).prisma as PrismaClient;
+    const profileService = new ProfileService(prisma);
+    const userId = parseInt(String(req.params.id), 10);
+    const user = await profileService.getProfile(userId);
+
+    res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

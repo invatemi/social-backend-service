@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '../../generated/prisma';
 import { FriendsService } from './friends.service';
 import { KrakenDRequest, krakendAuthMiddleware } from '../../middleware/krakend-auth'; 
+import { parsePaginationQuery } from '../../utils/pagination';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.get(
       const friendsService = new FriendsService(prisma);
 
       const userId = req.user!.userId;
-      const result = await friendsService.getFriends(userId);
+      const result = await friendsService.getFriends(userId, parsePaginationQuery(req.query));
 
       res.status(200).json({
         success: true,
@@ -39,7 +40,10 @@ router.get(
       const friendsService = new FriendsService(prisma);
 
       const userId = req.user!.userId;
-      const result = await friendsService.getIncomingRequests(userId);
+      const result = await friendsService.getIncomingRequests(
+        userId,
+        parsePaginationQuery(req.query)
+      );
 
       res.status(200).json({
         success: true,
@@ -61,7 +65,10 @@ router.get(
       const friendsService = new FriendsService(prisma);
 
       const userId = req.user!.userId;
-      const result = await friendsService.getOutgoingRequests(userId);
+      const result = await friendsService.getOutgoingRequests(
+        userId,
+        parsePaginationQuery(req.query)
+      );
 
       res.status(200).json({
         success: true,
@@ -123,6 +130,56 @@ router.post(
   }
 );
 
+// Отменить исходящую заявку в друзья
+router.post(
+  '/requests/:id/cancel',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const userId = req.user!.userId;
+      const requestId = parseInt(String(req.params.id), 10);
+
+      const result = await friendsService.cancelFriendRequest(userId, requestId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Friend request cancelled',
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Отклонить входящую заявку в друзья
+router.post(
+  '/requests/:id/decline',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const userId = req.user!.userId;
+      const requestId = parseInt(String(req.params.id), 10);
+
+      const result = await friendsService.declineFriendRequest(userId, requestId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Friend request declined',
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Удалить из друзей
 router.delete(
   '/:id',
@@ -141,6 +198,29 @@ router.delete(
         success: true,
         message: 'Friend removed and moved to following',
         ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Получить агрегированный статус отношений с пользователем
+router.get(
+  '/:id/relation',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const friendsService = new FriendsService(prisma);
+
+      const viewerId = req.user!.userId;
+      const targetId = parseInt(String(req.params.id), 10);
+      const relation = await friendsService.getRelation(viewerId, targetId);
+
+      res.status(200).json({
+        success: true,
+        ...relation,
       });
     } catch (error) {
       next(error);
@@ -181,7 +261,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const friendsService = new FriendsService(prisma);
 
     const userId = parseInt(String(req.params.id), 10);
-    const result = await friendsService.getFriends(userId);
+    const result = await friendsService.getFriends(userId, parsePaginationQuery(req.query));
 
     res.status(200).json({
       success: true,

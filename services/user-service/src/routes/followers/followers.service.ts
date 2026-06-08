@@ -13,6 +13,7 @@ import {
   USER_LIST_CACHE_TTL_SECONDS,
   userCacheKeys,
 } from '../../middleware/user-cache';
+import { PaginationParams, splitPage } from '../../utils/pagination';
 
 export interface FollowerData {
   id: number;
@@ -26,12 +27,14 @@ export interface FollowersResponse {
   user: { id: number; name: string };
   followers: FollowerData[];
   total: number;
+  nextCursor: string | null;
 }
 
 export interface FollowingResponse {
   user: { id: number; name: string };
   following: FollowerData[];
   total: number;
+  nextCursor: string | null;
 }
 
 const validateUserId = (userId: unknown): number => {
@@ -69,9 +72,9 @@ export class FollowersService {
   constructor(private prisma: PrismaClient) {}
 
   /** Returns followers for a user. */
-  async getFollowers(userId: number): Promise<FollowersResponse> {
+  async getFollowers(userId: number, pagination: PaginationParams): Promise<FollowersResponse> {
     const id = validateUserId(userId);
-    const cacheKey = userCacheKeys.followers(id);
+    const cacheKey = userCacheKeys.followers(id, pagination);
     const cached = await cache.get<FollowersResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -83,18 +86,26 @@ export class FollowersService {
     });
     if (!user) throw new UserNotFoundError(id);
 
-    const follows = await this.prisma.follow.findMany({
-      where: { followingId: id },
-      select: {
-        follower: {
-          select: { id: true, name: true, email: true, avatarUrl: true },
+    const [follows, total] = await Promise.all([
+      this.prisma.follow.findMany({
+        where: { followingId: id },
+        select: {
+          id: true,
+          follower: {
+            select: { id: true, name: true, email: true, avatarUrl: true },
+          },
+          createdAt: true,
         },
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { id: 'desc' },
+        take: pagination.limit + 1,
+        ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.follow.count({ where: { followingId: id } }),
+    ]);
 
-    const followers: FollowerData[] = follows.map((f) => ({
+    const page = splitPage(follows, pagination.limit, (follow) => follow.id);
+
+    const followers: FollowerData[] = page.items.map((f) => ({
       id: f.follower.id,
       name: f.follower.name,
       email: f.follower.email,
@@ -102,15 +113,15 @@ export class FollowersService {
       followedAt: f.createdAt,
     }));
 
-    const result = { user, followers, total: followers.length };
+    const result = { user, followers, total, nextCursor: page.nextCursor };
     await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
     return result;
   }
 
   /** Returns users followed by a user. */
-  async getFollowing(userId: number): Promise<FollowingResponse> {
+  async getFollowing(userId: number, pagination: PaginationParams): Promise<FollowingResponse> {
     const id = validateUserId(userId);
-    const cacheKey = userCacheKeys.following(id);
+    const cacheKey = userCacheKeys.following(id, pagination);
     const cached = await cache.get<FollowingResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -122,18 +133,26 @@ export class FollowersService {
     });
     if (!user) throw new UserNotFoundError(id);
 
-    const follows = await this.prisma.follow.findMany({
-      where: { followerId: id },
-      select: {
-        following: {
-          select: { id: true, name: true, email: true, avatarUrl: true },
+    const [follows, total] = await Promise.all([
+      this.prisma.follow.findMany({
+        where: { followerId: id },
+        select: {
+          id: true,
+          following: {
+            select: { id: true, name: true, email: true, avatarUrl: true },
+          },
+          createdAt: true,
         },
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { id: 'desc' },
+        take: pagination.limit + 1,
+        ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.follow.count({ where: { followerId: id } }),
+    ]);
 
-    const following: FollowerData[] = follows.map((f) => ({
+    const page = splitPage(follows, pagination.limit, (follow) => follow.id);
+
+    const following: FollowerData[] = page.items.map((f) => ({
       id: f.following.id,
       name: f.following.name,
       email: f.following.email,
@@ -141,7 +160,7 @@ export class FollowersService {
       followedAt: f.createdAt,
     }));
 
-    const result = { user, following, total: following.length };
+    const result = { user, following, total, nextCursor: page.nextCursor };
     await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
     return result;
   }

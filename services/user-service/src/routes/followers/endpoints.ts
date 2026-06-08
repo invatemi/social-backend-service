@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '../../generated/prisma';
 import { FollowersService } from './followers.service';
 import { KrakenDRequest, krakendAuthMiddleware } from '../../middleware/krakend-auth';
+import { parsePaginationQuery } from '../../utils/pagination';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.get(
       const followersService = new FollowersService(prisma);
 
       const userId = req.user!.userId;
-      const result = await followersService.getFollowers(userId);
+      const result = await followersService.getFollowers(userId, parsePaginationQuery(req.query));
 
       res.status(200).json({ success: true, ...result });
     } catch (error) {
@@ -36,7 +37,7 @@ router.get(
       const followersService = new FollowersService(prisma);
 
       const userId = req.user!.userId;
-      const result = await followersService.getFollowing(userId);
+      const result = await followersService.getFollowing(userId, parsePaginationQuery(req.query));
 
       res.status(200).json({ success: true, ...result });
     } catch (error) {
@@ -74,7 +75,7 @@ router.get('/:id/followers', async (req: Request, res: Response, next: NextFunct
     const prisma = (req as any).prisma as PrismaClient;
     const followersService = new FollowersService(prisma);
     const userId = parseInt(String(req.params.id), 10);
-    const result = await followersService.getFollowers(userId);
+    const result = await followersService.getFollowers(userId, parsePaginationQuery(req.query));
     res.status(200).json({ success: true, ...result });
   } catch (error) {
     next(error);
@@ -87,7 +88,7 @@ router.get('/:id/following', async (req: Request, res: Response, next: NextFunct
     const prisma = (req as any).prisma as PrismaClient;
     const followersService = new FollowersService(prisma);
     const userId = parseInt(String(req.params.id), 10);
-    const result = await followersService.getFollowing(userId);
+    const result = await followersService.getFollowing(userId, parsePaginationQuery(req.query));
     res.status(200).json({ success: true, ...result });
   } catch (error) {
     next(error);

@@ -1,3 +1,6 @@
+import { randomUUID } from 'crypto';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaClient } from '../../generated/prisma';
 import { eventBus } from '../../middleware/event-bus';
 import { UserNotFoundError, ValidationError } from '../followers/followers.errors';
@@ -5,8 +8,10 @@ import { cache } from '../../middleware/redis';
 import {
   invalidateUserProfileCache,
   USER_CACHE_TTL_SECONDS,
+  USER_LIST_CACHE_TTL_SECONDS,
   userCacheKeys,
 } from '../../middleware/user-cache';
+import { PaginationParams, splitPage } from '../../utils/pagination';
 
 export interface UpdateProfileInput {
   name?: string;
@@ -14,6 +19,48 @@ export interface UpdateProfileInput {
   avatarUrl?: string | null;
   bio?: string | null;
   location?: string | null;
+}
+
+export interface UserProfileData {
+  id: number;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  location: string | null;
+  createdAt: Date;
+  followersCount: number;
+  followingCount: number;
+  friendsCount: number;
+}
+
+export interface SearchUserData {
+  id: number;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  bio: string | null;
+}
+
+export interface AvatarUploadUrlData {
+  uploadUrl: string;
+  publicUrl: string;
+  method: 'PUT';
+  headers: { 'Content-Type': string };
+  expiresIn: number;
+  key: string;
+}
+
+export interface AvatarUploadUrlInput {
+  contentType?: string;
+  fileName?: string;
+}
+
+export class AvatarUploadConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AvatarUploadConfigurationError';
+  }
 }
 
 const validateUserId = (userId: unknown): number => {
@@ -24,8 +71,192 @@ const validateUserId = (userId: unknown): number => {
   return id;
 };
 
+const validateSearchQuery = (query: unknown): string => {
+  const value = String(query ?? '').trim();
+  if (value.length < 2) {
+    throw new ValidationError('Search query must be at least 2 characters', 'q');
+  }
+  return value;
+};
+
+const sanitizeFileName = (fileName: string | undefined): string => {
+  const sanitized = String(fileName ?? 'avatar')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80);
+
+  return sanitized || 'avatar';
+};
+
+const getRequiredEnv = (name: string): string => {
+  const value = process.env[name];
+  if (!value) {
+    throw new AvatarUploadConfigurationError(`${name} is required for avatar uploads`);
+  }
+  return value;
+};
+
+const joinPublicUrl = (baseUrl: string, key: string): string => {
+  const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+  return `${baseUrl.replace(/\/+$/, '')}/${encodedKey}`;
+};
+
+const userProfileSelect = {
+  id: true,
+  name: true,
+  email: true,
+  avatarUrl: true,
+  bio: true,
+  location: true,
+  createdAt: true,
+} as const;
+
 export class ProfileService {
   constructor(private prisma: PrismaClient) {}
+
+  private async getProfileCounts(userId: number) {
+    const [followersCount, followingCount, friendsCount] = await Promise.all([
+      this.prisma.follow.count({ where: { followingId: userId } }),
+      this.prisma.follow.count({ where: { followerId: userId } }),
+      this.prisma.friendship.count({
+        where: {
+          OR: [{ userId }, { friendId: userId }],
+        },
+      }),
+    ]);
+
+    return { followersCount, followingCount, friendsCount };
+  }
+
+  /** Returns a profile with social counters. */
+  async getProfile(userId: number): Promise<UserProfileData> {
+    const id = validateUserId(userId);
+    const cacheKey = userCacheKeys.byId(id);
+    const cached = await cache.get<UserProfileData>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: userProfileSelect,
+    });
+    if (!user) throw new UserNotFoundError(id);
+
+    const result = {
+      ...user,
+      ...(await this.getProfileCounts(id)),
+    };
+
+    await cache.set(cacheKey, result, USER_CACHE_TTL_SECONDS);
+    return result;
+  }
+
+  /** Searches users by name or email. */
+  async searchUsers(
+    query: unknown,
+    pagination: PaginationParams
+  ): Promise<{ users: SearchUserData[]; total: number; nextCursor: string | null }> {
+    const q = validateSearchQuery(query);
+    const cacheKey = userCacheKeys.search(q, pagination);
+    const cached = await cache.get<{
+      users: SearchUserData[];
+      total: number;
+      nextCursor: string | null;
+    }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const where = {
+      OR: [
+        { name: { contains: q, mode: 'insensitive' as const } },
+        { email: { contains: q, mode: 'insensitive' as const } },
+      ],
+    };
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatarUrl: true,
+          bio: true,
+        },
+        orderBy: { id: 'desc' },
+        take: pagination.limit + 1,
+        ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    const page = splitPage(users, pagination.limit, (user) => user.id);
+    const result = {
+      users: page.items,
+      total,
+      nextCursor: page.nextCursor,
+    };
+
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
+  }
+
+  /** Generates a presigned S3-compatible PUT URL for avatar upload. */
+  async getAvatarUploadUrl(
+    userId: number,
+    input: AvatarUploadUrlInput = {}
+  ): Promise<AvatarUploadUrlData> {
+    const id = validateUserId(userId);
+    const contentType = input.contentType ?? 'image/jpeg';
+    if (!contentType.startsWith('image/')) {
+      throw new ValidationError('Avatar content type must be an image', 'contentType');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!user) throw new UserNotFoundError(id);
+
+    const bucket = getRequiredEnv('S3_BUCKET');
+    const publicBaseUrl = getRequiredEnv('S3_PUBLIC_BASE_URL');
+    const expiresIn = Number(process.env.S3_UPLOAD_URL_TTL_SECONDS ?? 300);
+    const key = `avatars/${id}/${randomUUID()}-${sanitizeFileName(input.fileName)}`;
+
+    const client = new S3Client({
+      region: process.env.S3_REGION ?? 'us-east-1',
+      endpoint: process.env.S3_ENDPOINT,
+      forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== 'false',
+      credentials: {
+        accessKeyId: getRequiredEnv('S3_ACCESS_KEY_ID'),
+        secretAccessKey: getRequiredEnv('S3_SECRET_ACCESS_KEY'),
+      },
+    });
+
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    const uploadUrl = await getSignedUrl(client, command, {
+      expiresIn,
+      signableHeaders: new Set(['content-type']),
+    });
+
+    return {
+      uploadUrl,
+      publicUrl: joinPublicUrl(publicBaseUrl, key),
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      expiresIn,
+      key,
+    };
+  }
 
   /** Updates profile fields and publishes a user.updated event. */
   async updateProfile(userId: number, input: UpdateProfileInput) {
@@ -64,7 +295,6 @@ export class ProfileService {
     });
 
     await invalidateUserProfileCache(id);
-    await cache.set(userCacheKeys.byId(id), updatedUser, USER_CACHE_TTL_SECONDS);
 
     try {
       await eventBus.publish('user.updated', {

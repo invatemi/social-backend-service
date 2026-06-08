@@ -16,6 +16,7 @@ import {
   USER_LIST_CACHE_TTL_SECONDS,
   userCacheKeys,
 } from '../../middleware/user-cache';
+import { PaginationParams, splitPage } from '../../utils/pagination';
 
 export interface FriendData {
   id: number;
@@ -29,6 +30,7 @@ export interface FriendsResponse {
   user: { id: number; name: string };
   friends: FriendData[];
   total: number;
+  nextCursor: string | null;
 }
 
 export interface FriendRequestData {
@@ -38,6 +40,16 @@ export interface FriendRequestData {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface UserRelationData {
+  isFriend: boolean;
+  isFollowing: boolean;
+  isFollowedBy: boolean;
+  hasIncomingRequest: boolean;
+  hasOutgoingRequest: boolean;
+  incomingRequestId: number | null;
+  outgoingRequestId: number | null;
 }
 
 const validateUserId = (userId: unknown): number => {
@@ -273,27 +285,110 @@ export class FriendsService {
     };
   }
 
-  /** Returns incoming pending friend requests. */
-  async getIncomingRequests(userId: number): Promise<{ requests: FriendRequestData[]; total: number }> {
+  /** Cancels an outgoing pending friend request. */
+  async cancelFriendRequest(userId: number, requestId: number): Promise<{ request: FriendRequestData }> {
     const id = validateUserId(userId);
-    const cacheKey = userCacheKeys.incomingRequests(id);
-    const cached = await cache.get<{ requests: FriendRequestData[]; total: number }>(cacheKey);
-    if (cached) {
-      return cached;
-    }
+    const friendRequestId = validateUserId(requestId);
 
-    const requests = await this.prisma.friendRequest.findMany({
-      where: { toUserId: id, status: 'pending' },
+    const request = await this.prisma.friendRequest.findFirst({
+      where: {
+        id: friendRequestId,
+        fromUserId: id,
+        status: 'pending',
+      },
       include: {
         from: { select: userSummarySelect },
         to: { select: userSummarySelect },
       },
-      orderBy: { createdAt: 'desc' },
     });
 
+    if (!request) {
+      throw new FriendRequestNotFoundError();
+    }
+
+    const updatedRequest = await this.prisma.friendRequest.update({
+      where: { id: request.id },
+      data: { status: 'cancelled', updatedAt: new Date() },
+      include: {
+        from: { select: userSummarySelect },
+        to: { select: userSummarySelect },
+      },
+    });
+
+    await invalidateFriendCaches(request.fromUserId, request.toUserId);
+    return { request: formatFriendRequest(updatedRequest) };
+  }
+
+  /** Declines an incoming pending friend request. */
+  async declineFriendRequest(userId: number, requestId: number): Promise<{ request: FriendRequestData }> {
+    const id = validateUserId(userId);
+    const friendRequestId = validateUserId(requestId);
+
+    const request = await this.prisma.friendRequest.findFirst({
+      where: {
+        id: friendRequestId,
+        toUserId: id,
+        status: 'pending',
+      },
+      include: {
+        from: { select: userSummarySelect },
+        to: { select: userSummarySelect },
+      },
+    });
+
+    if (!request) {
+      throw new FriendRequestNotFoundError();
+    }
+
+    const updatedRequest = await this.prisma.friendRequest.update({
+      where: { id: request.id },
+      data: { status: 'declined', updatedAt: new Date() },
+      include: {
+        from: { select: userSummarySelect },
+        to: { select: userSummarySelect },
+      },
+    });
+
+    await invalidateFriendCaches(request.fromUserId, request.toUserId);
+    return { request: formatFriendRequest(updatedRequest) };
+  }
+
+  /** Returns incoming pending friend requests. */
+  async getIncomingRequests(
+    userId: number,
+    pagination: PaginationParams
+  ): Promise<{ requests: FriendRequestData[]; total: number; nextCursor: string | null }> {
+    const id = validateUserId(userId);
+    const cacheKey = userCacheKeys.incomingRequests(id, pagination);
+    const cached = await cache.get<{
+      requests: FriendRequestData[];
+      total: number;
+      nextCursor: string | null;
+    }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const [requests, total] = await Promise.all([
+      this.prisma.friendRequest.findMany({
+        where: { toUserId: id, status: 'pending' },
+        include: {
+          from: { select: userSummarySelect },
+          to: { select: userSummarySelect },
+        },
+        orderBy: { id: 'desc' },
+        take: pagination.limit + 1,
+        ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.friendRequest.count({ where: { toUserId: id, status: 'pending' } }),
+    ]);
+
+    const page = splitPage(requests, pagination.limit, (request) => request.id);
+
     const result = {
-      requests: requests.map(formatFriendRequest),
-      total: requests.length,
+      requests: page.items.map(formatFriendRequest),
+      total,
+      nextCursor: page.nextCursor,
     };
 
     await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
@@ -301,26 +396,41 @@ export class FriendsService {
   }
 
   /** Returns outgoing pending friend requests. */
-  async getOutgoingRequests(userId: number): Promise<{ requests: FriendRequestData[]; total: number }> {
+  async getOutgoingRequests(
+    userId: number,
+    pagination: PaginationParams
+  ): Promise<{ requests: FriendRequestData[]; total: number; nextCursor: string | null }> {
     const id = validateUserId(userId);
-    const cacheKey = userCacheKeys.outgoingRequests(id);
-    const cached = await cache.get<{ requests: FriendRequestData[]; total: number }>(cacheKey);
+    const cacheKey = userCacheKeys.outgoingRequests(id, pagination);
+    const cached = await cache.get<{
+      requests: FriendRequestData[];
+      total: number;
+      nextCursor: string | null;
+    }>(cacheKey);
     if (cached) {
       return cached;
     }
 
-    const requests = await this.prisma.friendRequest.findMany({
-      where: { fromUserId: id, status: 'pending' },
-      include: {
-        from: { select: userSummarySelect },
-        to: { select: userSummarySelect },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [requests, total] = await Promise.all([
+      this.prisma.friendRequest.findMany({
+        where: { fromUserId: id, status: 'pending' },
+        include: {
+          from: { select: userSummarySelect },
+          to: { select: userSummarySelect },
+        },
+        orderBy: { id: 'desc' },
+        take: pagination.limit + 1,
+        ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.friendRequest.count({ where: { fromUserId: id, status: 'pending' } }),
+    ]);
+
+    const page = splitPage(requests, pagination.limit, (request) => request.id);
 
     const result = {
-      requests: requests.map(formatFriendRequest),
-      total: requests.length,
+      requests: page.items.map(formatFriendRequest),
+      total,
+      nextCursor: page.nextCursor,
     };
 
     await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
@@ -328,9 +438,9 @@ export class FriendsService {
   }
 
   /** Returns friends for a user. */
-  async getFriends(userId: number): Promise<FriendsResponse> {
+  async getFriends(userId: number, pagination: PaginationParams): Promise<FriendsResponse> {
     const id = validateUserId(userId);
-    const cacheKey = userCacheKeys.friends(id);
+    const cacheKey = userCacheKeys.friends(id, pagination);
     const cached = await cache.get<FriendsResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -342,25 +452,35 @@ export class FriendsService {
     });
     if (!user) throw new UserNotFoundError(id);
 
-    const friendships = await this.prisma.friendship.findMany({
-      where: {
-        OR: [{ userId: id }, { friendId: id }],
-      },
-      select: {
-        userId: true,
-        friendId: true,
-        createdAt: true,
-        user: {
-          select: { id: true, name: true, email: true, avatarUrl: true },
-        },
-        friend: {
-          select: { id: true, name: true, email: true, avatarUrl: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const where = {
+      OR: [{ userId: id }, { friendId: id }],
+    };
 
-    const friends: FriendData[] = friendships.map((f) => {
+    const [friendships, total] = await Promise.all([
+      this.prisma.friendship.findMany({
+        where,
+        select: {
+          id: true,
+          userId: true,
+          friendId: true,
+          createdAt: true,
+          user: {
+            select: { id: true, name: true, email: true, avatarUrl: true },
+          },
+          friend: {
+            select: { id: true, name: true, email: true, avatarUrl: true },
+          },
+        },
+        orderBy: { id: 'desc' },
+        take: pagination.limit + 1,
+        ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.friendship.count({ where }),
+    ]);
+
+    const page = splitPage(friendships, pagination.limit, (friendship) => friendship.id);
+
+    const friends: FriendData[] = page.items.map((f) => {
       const friendUser = f.userId === id ? f.friend : f.user;
       return {
         id: friendUser.id,
@@ -371,7 +491,7 @@ export class FriendsService {
       };
     });
 
-    const result = { user, friends, total: friends.length };
+    const result = { user, friends, total, nextCursor: page.nextCursor };
     await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
     return result;
   }
@@ -457,6 +577,80 @@ export class FriendsService {
     });
 
     const result = !!friendship;
+    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    return result;
+  }
+
+  /** Returns aggregate relation flags for the current viewer and target user. */
+  async getRelation(viewerId: number, targetId: number): Promise<UserRelationData> {
+    const currentUserId = validateUserId(viewerId);
+    const otherUserId = validateUserId(targetId);
+    const cacheKey = userCacheKeys.relation(currentUserId, otherUserId);
+    const cached = await cache.get<UserRelationData>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const [targetUser, friendship, following, followedBy, incomingRequest, outgoingRequest] =
+      await Promise.all([
+        this.prisma.user.findUnique({ where: { id: otherUserId }, select: { id: true } }),
+        this.prisma.friendship.findFirst({
+          where: {
+            OR: [
+              { userId: currentUserId, friendId: otherUserId },
+              { userId: otherUserId, friendId: currentUserId },
+            ],
+          },
+          select: { id: true },
+        }),
+        this.prisma.follow.findUnique({
+          where: {
+            followerId_followingId: {
+              followerId: currentUserId,
+              followingId: otherUserId,
+            },
+          },
+          select: { id: true },
+        }),
+        this.prisma.follow.findUnique({
+          where: {
+            followerId_followingId: {
+              followerId: otherUserId,
+              followingId: currentUserId,
+            },
+          },
+          select: { id: true },
+        }),
+        this.prisma.friendRequest.findFirst({
+          where: {
+            fromUserId: otherUserId,
+            toUserId: currentUserId,
+            status: 'pending',
+          },
+          select: { id: true },
+        }),
+        this.prisma.friendRequest.findFirst({
+          where: {
+            fromUserId: currentUserId,
+            toUserId: otherUserId,
+            status: 'pending',
+          },
+          select: { id: true },
+        }),
+      ]);
+
+    if (!targetUser) throw new UserNotFoundError(otherUserId);
+
+    const result = {
+      isFriend: Boolean(friendship),
+      isFollowing: Boolean(following),
+      isFollowedBy: Boolean(followedBy),
+      hasIncomingRequest: Boolean(incomingRequest),
+      hasOutgoingRequest: Boolean(outgoingRequest),
+      incomingRequestId: incomingRequest?.id ?? null,
+      outgoingRequestId: outgoingRequest?.id ?? null,
+    };
+
     await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
     return result;
   }
