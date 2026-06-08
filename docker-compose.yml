@@ -5,11 +5,14 @@ services:
     ports:
       - "${KRAKEND_EXTERNAL_PORT:-8080}:${KRAKEND_PORT:-8080}"
     volumes:
-      - ./krakend/krakend.json:/etc/krakend/krakend.json:ro
+      - ./krakend:/etc/krakend:ro
     environment:
       JWT_SECRET: ${JWT_SECRET}
       KRAKEND_PORT: ${KRAKEND_PORT:-8080}
-      FC_ENABLE: ${KRAKEND_FC_ENABLE:-1}
+      FC_ENABLE: "1"
+      FC_PARTIALS: "/etc/krakend/partials"
+      FC_OUT: "/tmp/krakend.json"
+    command: ["run", "-c", "/etc/krakend/krakend.tmpl"]
     depends_on:
       social-auth-service: { condition: service_healthy }
       social-user-service: { condition: service_healthy }
@@ -121,8 +124,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${AUTH_DB_HOST:-auth-db}:5432/${AUTH_DB_NAME}?schema=public"
+      RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
     depends_on:
       auth-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');const p=process.env.PORT||3001;const r=h.get('http://127.0.0.1:'+p+'/health',res=>process.exit(res.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.setTimeout(2000,()=>process.exit(1));\""]
       interval: 10s

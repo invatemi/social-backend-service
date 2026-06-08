@@ -10,6 +10,7 @@ import { requestLogger } from './middleware/request-logger';
 import { jsonErrorHandler } from './middleware/json-error-handler';
 import { eventBus } from './middleware/event-bus';
 import { cache } from './middleware/redis';
+import { registerUserRegisteredConsumer } from './consumers/user-registered.consumer';
 
 
 if (process.env.NODE_ENV !== 'production') {
@@ -67,9 +68,14 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-void eventBus.connect().catch((error) => {
-  console.log('[EventBus] RabbitMQ startup connection failed:', error);
-});
+void (async () => {
+  try {
+    await eventBus.connect();
+    await registerUserRegisteredConsumer(prisma);
+  } catch (error) {
+    console.log('[EventBus] RabbitMQ startup failed:', error);
+  }
+})();
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Service running on port ${PORT}`);

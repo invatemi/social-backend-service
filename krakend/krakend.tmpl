@@ -1,0 +1,1413 @@
+{
+  "version": 3,
+  "name": "Social Backend Gateway",
+  "port": 8080,
+  "timeout": "10000ms",
+  "endpoints": [
+    {
+      "endpoint": "/api/auth/health",
+      "method": "GET",
+      "public": true,
+      "backend": [
+        {
+          "host": [
+            "http://social-auth-service:3001"
+          ],
+          "url_pattern": "/health"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auth/register",
+      "method": "POST",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-auth-service:3001"
+          ],
+          "url_pattern": "/api/auth/register"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "host": [
+            "http://social-auth-service:3001"
+          ],
+          "url_pattern": "/api/auth/login"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auth/refresh",
+      "method": "POST",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "host": [
+            "http://social-auth-service:3001"
+          ],
+          "url_pattern": "/api/auth/refresh"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/health",
+      "method": "GET",
+      "public": true,
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/health"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/me",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/users/me"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/search",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "input_query_strings": [
+        "q",
+        "limit",
+        "cursor"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/users/search"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/me/avatar-upload-url",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "input_query_strings": [
+        "contentType",
+        "fileName"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/users/me/avatar-upload-url"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/auth/logout",
+      "method": "POST",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "host": [
+            "http://social-auth-service:3001"
+          ],
+          "url_pattern": "/api/auth/logout"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/me/followers",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "input_query_strings": [
+        "limit",
+        "cursor"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/followers/me/followers"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/following",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "input_query_strings": [
+        "limit",
+        "cursor"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/followers/me/following"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/is-following/{id}",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/followers/me/is-following/{id}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/{id}/followers",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "input_query_strings": [
+        "limit",
+        "cursor"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/followers/{id}/followers"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/{id}/following",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "input_query_strings": [
+        "limit",
+        "cursor"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/followers/{id}/following"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/{id}/counts",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/followers/{id}/counts"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/{id}/follow",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/followers/{id}/follow"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/{id}/follow",
+      "method": "DELETE",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/followers/{id}/follow"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/friends",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "input_query_strings": [
+        "limit",
+        "cursor"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/me"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/friends/{id}",
+      "method": "DELETE",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/{id}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/is-friends/{id}",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/me/is-friends/{id}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/{id}/friends",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "input_query_strings": [
+        "limit",
+        "cursor"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/{id}"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/{id}/friends/count",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/{id}/count"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/{id}/relation",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/{id}/relation"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/{id}",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/users/{id}"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/users/me",
+      "method": "PATCH",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/users/me"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/{id}/friends/request",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/{id}/request"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/friends/requests/incoming",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "input_query_strings": [
+        "limit",
+        "cursor"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/requests/incoming"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/friends/requests/outgoing",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "input_query_strings": [
+        "limit",
+        "cursor"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/requests/outgoing"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/friends/requests/{id}/accept",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/requests/{id}/accept"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/friends/requests/{id}/cancel",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/requests/{id}/cancel"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/friends/requests/{id}/decline",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/friends/requests/{id}/decline"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/posts/health",
+      "method": "GET",
+      "public": true,
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/health"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/posts",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/posts",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/posts/me",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts/me"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/posts/{id}",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts/{id}"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/posts/{id}",
+      "method": "PUT",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts/{id}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/posts/{id}",
+      "method": "DELETE",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts/{id}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/posts/{id}/publish",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts/{id}/publish"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/posts/{id}/unpublish",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts/{id}/unpublish"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/posts/user/{userId}",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts/user/{userId}"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/comments",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/comments"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/comments/{id}",
+      "method": "PUT",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/comments/{id}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/comments/{id}",
+      "method": "DELETE",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/comments/{id}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/comments/{id}",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/comments/{id}"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/comments/post/{postId}",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/comments/post/{postId}"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/comments/post/{postId}/count",
+      "method": "GET",
+      "public": true,
+      "input_headers": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/comments/post/{postId}/count"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/messages/health",
+      "method": "GET",
+      "public": true,
+      "backend": [
+        {
+          "host": [
+            "http://social-message-service:3004"
+          ],
+          "url_pattern": "/health"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/notifications/health",
+      "method": "GET",
+      "public": true,
+      "backend": [
+        {
+          "host": [
+            "http://social-notifications-service:3005"
+          ],
+          "url_pattern": "/health"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/notifications",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-notifications-service:3005"
+          ],
+          "url_pattern": "/api/notifications"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/notifications/stream",
+      "method": "GET",
+      "timeout": "0s",
+      "input_headers": [
+        "Authorization",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "host": [
+            "http://social-notifications-service:3005"
+          ],
+          "url_pattern": "/api/notifications/stream",
+          "encoding": "no-op"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/notifications/read-all",
+      "method": "PATCH",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-notifications-service:3005"
+          ],
+          "url_pattern": "/api/notifications/read-all"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/notifications/{id}/read",
+      "method": "PATCH",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-notifications-service:3005"
+          ],
+          "url_pattern": "/api/notifications/{id}/read"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    }
+  ],
+  "extra_config": {
+    "router": {
+      "disable_redirect_fixed_path": true,
+      "disable_redirect_trailing_slash": true
+    },
+    "security/cors": {
+      "allow_origins": [
+        "http://localhost:5173"
+      ],
+      "allow_methods": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "allow_headers": [
+        "Origin",
+        "Authorization",
+        "Content-Type",
+        "Accept"
+      ],
+      "expose_headers": [
+        "Content-Length"
+      ],
+      "max_age": "12h",
+      "allow_credentials": false
+    }
+  }
+}

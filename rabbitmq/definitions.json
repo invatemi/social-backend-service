@@ -151,6 +151,15 @@
       "arguments": {
         "x-queue-type": "classic"
       }
+    },
+    {
+      "name": "user-service.user.registered",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
     }
   ],
   "policies": [
@@ -158,6 +167,16 @@
       "name": "notifications-dlx",
       "vhost": "/",
       "pattern": "^notifications\\.(comment|post|user)\\.",
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "dead-letter.events"
+      },
+      "priority": 0
+    },
+    {
+      "name": "user-service-dlx",
+      "vhost": "/",
+      "pattern": "^user-service\\.",
       "apply-to": "queues",
       "definition": {
         "dead-letter-exchange": "dead-letter.events"
@@ -268,6 +287,14 @@
       "destination": "notifications.dead-letter",
       "destination_type": "queue",
       "routing_key": "",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "user-service.user.registered",
+      "destination_type": "queue",
+      "routing_key": "user.registered",
       "arguments": {}
     }
   ]

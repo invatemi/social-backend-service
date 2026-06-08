@@ -68,4 +68,13 @@ router.post('/logout', async (req: AuthRequest, res: Response, next: NextFunctio
   }
 });
 
+router.get('/jwks', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const authService = getAuthService(req);
+    res.status(200).json(authService.getJwks());
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

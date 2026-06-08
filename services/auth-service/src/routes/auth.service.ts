@@ -9,6 +9,7 @@ import {
   InvalidCredentialsError,
   InvalidRefreshTokenError,
 } from './auth.errors';
+import { eventBus } from '../lib/event-bus';
 
 // ==================== TYPES ====================
 export interface UserRegistrationData {
@@ -43,6 +44,7 @@ export type LoginResponse = AuthResponse;
 
 // ==================== CONSTANTS ====================
 const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET as string;
+const ACCESS_TOKEN_KEY_ID = 'auth-service-key';
 const ACCESS_TOKEN_EXPIRY = (process.env.ACCESS_TOKEN_EXPIRY || '15m') as string;
 const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || '7', 10);
 const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
@@ -83,9 +85,12 @@ export class AuthService {
   /** Creates a signed access token for an authenticated user. */
   generateAccessToken(userId: number, email: string, role: string): string {
     return jwt.sign(
-      { userId, email, role }, 
+      { userId, email, role },
       ACCESS_TOKEN_SECRET,
-      { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
+      {
+        expiresIn: ACCESS_TOKEN_EXPIRY,
+        keyid: ACCESS_TOKEN_KEY_ID,
+      } as jwt.SignOptions
     );
   }
 
@@ -103,6 +108,24 @@ export class AuthService {
     });
 
     return token;
+  }
+
+  /** Returns the JWK set for KrakenD JWT validation. */
+  getJwks() {
+    if (!ACCESS_TOKEN_SECRET) {
+      throw new Error('JWT_SECRET is not configured');
+    }
+
+    return {
+      keys: [
+        {
+          kty: 'oct',
+          alg: 'HS256',
+          kid: ACCESS_TOKEN_KEY_ID,
+          k: Buffer.from(ACCESS_TOKEN_SECRET, 'utf8').toString('base64url'),
+        },
+      ],
+    };
   }
 
   /** Registers a user and returns public user data with tokens. */
@@ -145,6 +168,18 @@ export class AuthService {
 
     const accessToken = this.generateAccessToken(user.id, user.email, user.role);
     const refreshToken = await this.generateRefreshToken(user.id);
+
+    try {
+      await eventBus.publish('user.registered', {
+        userId: authAccount.id,
+        username,
+        email,
+        roleId: DEFAULT_USER_ROLE_ID,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('[AuthService] Failed to publish user.registered:', error);
+    }
 
     return {
       accessToken,

@@ -1,5 +1,5 @@
 import * as amqp from 'amqplib';
-import type { Channel } from 'amqplib';
+import type { Channel, ConsumeMessage } from 'amqplib';
 
 type AmqpConnection = Awaited<ReturnType<typeof amqp.connect>>;
 
@@ -11,7 +11,8 @@ export type UserEventRoutingKey =
   | 'friend.removed'
   | 'follow.created'
   | 'follow.deleted'
-  | 'user.updated';
+  | 'user.updated'
+  | 'user.registered';
 
 export interface UserSummary {
   id: number;
@@ -58,12 +59,37 @@ export interface UserUpdatedPayload {
   timestamp: string;
 }
 
+export interface UserRegisteredPayload {
+  userId: number;
+  username: string;
+  email: string;
+  roleId: number;
+  timestamp: string;
+}
+
 export type UserEventPayload =
   | FriendRequestedPayload
   | FriendAcceptedPayload
   | FriendRemovedPayload
   | FollowPayload
-  | UserUpdatedPayload;
+  | UserUpdatedPayload
+  | UserRegisteredPayload;
+
+export interface MessageControls {
+  ack: () => void;
+  nack: (requeue?: boolean) => void;
+}
+
+export type EventHandler = (
+  message: ConsumeMessage,
+  controls: MessageControls
+) => Promise<void> | void;
+
+export interface SubscribeOptions {
+  exchangeName: string;
+  exchangeType?: 'topic' | 'direct' | 'fanout' | 'headers';
+  routingKey: string;
+}
 
 export class EventBus {
   private static instance: EventBus;
@@ -108,6 +134,7 @@ export class EventBus {
       });
 
       this.channel = await this.connection.createChannel();
+      await this.channel.prefetch(10);
 
       this.channel.on('error', (error) => {
         console.log('[EventBus] Channel error:', error);
@@ -157,6 +184,57 @@ export class EventBus {
     }
 
     console.log(`[EventBus] Published ${routingKey}:`, payload);
+  }
+
+  /** Subscribes to a durable queue with manual acknowledgements. */
+  async subscribe(
+    queueName: string,
+    handler: EventHandler,
+    options?: SubscribeOptions
+  ): Promise<void> {
+    if (!this.channel) {
+      await this.connect();
+    }
+
+    const channel = this.channel;
+
+    if (!channel) {
+      throw new Error('RabbitMQ channel is not available');
+    }
+
+    await channel.assertQueue(queueName, { durable: true });
+
+    if (options) {
+      await channel.assertExchange(options.exchangeName, options.exchangeType ?? 'topic', {
+        durable: true,
+      });
+      await channel.bindQueue(queueName, options.exchangeName, options.routingKey);
+      console.log(
+        `[EventBus] Bound queue ${queueName} to ${options.exchangeName} with ${options.routingKey}`
+      );
+    }
+
+    await channel.consume(
+      queueName,
+      async (message) => {
+        if (!message) {
+          return;
+        }
+
+        try {
+          await handler(message, {
+            ack: () => channel.ack(message),
+            nack: (requeue = false) => channel.nack(message, false, requeue),
+          });
+        } catch (error) {
+          console.log(`[EventBus] Handler failed for queue ${queueName}:`, error);
+          channel.nack(message, false, false);
+        }
+      },
+      { noAck: false }
+    );
+
+    console.log(`[EventBus] Subscribed to queue ${queueName}`);
   }
 
   /** Closes the RabbitMQ channel and connection. */
