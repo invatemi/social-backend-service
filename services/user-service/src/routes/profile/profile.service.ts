@@ -1,4 +1,4 @@
-import { PrismaClient } from '../../generated/prisma/client';
+import { PrismaClient } from '../../generated/prisma';
 import { eventBus } from '../../middleware/event-bus';
 import { UserNotFoundError, ValidationError } from '../followers/followers.errors';
 import { cache } from '../../middleware/redis';

@@ -4,45 +4,47 @@ import { AuthService, UserRegistrationData, UserLoginData } from './auth.service
 
 const router = Router();
 
-router.post('/register', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const prisma = (req as any).prisma as PrismaClient;
-    const authService = new AuthService(prisma);
-    
-    const { email, password, name } = req.body;
-    const result = await authService.registerUser({ email, password, name } as UserRegistrationData);
+interface AuthRequest extends Request {
+  prisma?: PrismaClient;
+}
 
-    res.status(200).json({
-      message: result.message,
-      user: result.user,
-      ...result.tokens,
-    });
+const getAuthService = (req: AuthRequest): AuthService => {
+  if (!req.prisma) {
+    throw new Error('PrismaClient is not attached to request');
+  }
+
+  return new AuthService(req.prisma);
+};
+
+router.post('/register', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const authService = getAuthService(req);
+    
+    const { username, email, password } = req.body;
+    const result = await authService.registerUser({ username, email, password } as UserRegistrationData);
+
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
 });
 
-router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const prisma = (req as any).prisma as PrismaClient;
-    const authService = new AuthService(prisma);
+    const authService = getAuthService(req);
     
     const { email, password } = req.body;
     const result = await authService.login({ email, password } as UserLoginData);
 
-    res.status(200).json({
-      user: result.user,
-      ...result.tokens,
-    });
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
 });
 
-router.post('/refresh', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/refresh', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const prisma = (req as any).prisma as PrismaClient;
-    const authService = new AuthService(prisma);
+    const authService = getAuthService(req);
     
     const { refreshToken } = req.body;
     const tokens = await authService.refreshAccessToken(refreshToken);
@@ -53,10 +55,9 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
   }
 });
 
-router.post('/logout', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/logout', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const prisma = (req as any).prisma as PrismaClient;
-    const authService = new AuthService(prisma);
+    const authService = getAuthService(req);
     
     const { refreshToken } = req.body;
     await authService.logout(refreshToken);

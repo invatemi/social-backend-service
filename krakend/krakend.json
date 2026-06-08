@@ -28,6 +28,7 @@
       "method": "POST",
       "public": true,
       "input_headers": ["*"],
+      "output_encoding": "no-op",
       "backend": [{
         "host": ["http://social-auth-service:3001"],
         "url_pattern": "/api/auth/login"
@@ -38,19 +39,10 @@
       "method": "POST",
       "public": true,
       "input_headers": ["*"],
+      "output_encoding": "no-op",
       "backend": [{
         "host": ["http://social-auth-service:3001"],
         "url_pattern": "/api/auth/refresh"
-      }]
-    },
-    {
-      "endpoint": "/api/auth/logout",
-      "method": "POST",
-      "public": true,
-      "input_headers": ["*"],
-      "backend": [{
-        "host": ["http://social-auth-service:3001"],
-        "url_pattern": "/api/auth/logout"
       }]
     },
     {
@@ -60,6 +52,17 @@
       "backend": [{
         "host": ["http://social-user-service:3002"],
         "url_pattern": "/health"
+      }]
+    },
+    {
+      "endpoint": "/api/auth/logout",
+      "method": "POST",
+      "public": true,
+      "input_headers": ["*"],
+      "output_encoding": "no-op",
+      "backend": [{
+        "host": ["http://social-auth-service:3001"],
+        "url_pattern": "/api/auth/logout"
       }]
     },
     {
@@ -438,6 +441,14 @@
     }
   ],
   "extra_config": {
+    "security/cors": {
+      "allow_origins": ["http://localhost:5173"],
+      "allow_methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      "allow_headers": ["Origin", "Authorization", "Content-Type", "Accept"],
+      "expose_headers": ["Content-Length"],
+      "max_age": "12h",
+      "allow_credentials": false
+    },
     "auth/validator": {
       "alg": "HS256",
       "key": "{{ env `JWT_SECRET` }}",

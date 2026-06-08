@@ -12,9 +12,9 @@ import {
 
 // ==================== TYPES ====================
 export interface UserRegistrationData {
+  username: string;
   email: string;
   password: string;
-  name: string;
 }
 
 export interface UserLoginData {
@@ -24,6 +24,7 @@ export interface UserLoginData {
 
 export interface UserPublicData {
   id: number;
+  username: string;
   email: string;
   role: string;
 }
@@ -31,25 +32,21 @@ export interface UserPublicData {
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
-  expiresIn: string;
 }
 
-export interface RegistrationResponse {
-  message: string;
+export interface AuthResponse extends AuthTokens {
   user: UserPublicData;
-  tokens: AuthTokens;
 }
 
-export interface LoginResponse {
-  user: UserPublicData;
-  tokens: AuthTokens;
-}
+export type RegistrationResponse = AuthResponse;
+export type LoginResponse = AuthResponse;
 
 // ==================== CONSTANTS ====================
 const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET as string;
 const ACCESS_TOKEN_EXPIRY = (process.env.ACCESS_TOKEN_EXPIRY || '15m') as string;
 const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || '7', 10);
 const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
+const DEFAULT_USER_ROLE_ID = 3;
 
 // ==================== VALIDATION HELPERS ====================
 const validateString = (value: unknown, fieldName: string, minLength = 1): string => {
@@ -110,7 +107,7 @@ export class AuthService {
 
   /** Registers a user and returns public user data with tokens. */
   async registerUser(data: UserRegistrationData): Promise<RegistrationResponse> {
-    const name = validateString(data.name, 'name', 2);
+    const username = validateString(data.username, 'username', 2);
     const email = validateEmail(data.email);
     const password = validatePassword(data.password);
 
@@ -123,17 +120,17 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-    const roleIdValue = 1;
 
     const authAccount = await this.prisma.authAccount.create({
       data: {
         email,
         passwordHash,
-        name,
-        roleId: roleIdValue,
+        username,
+        roleId: DEFAULT_USER_ROLE_ID,
       },
       select: {
         id: true,
+        username: true,
         email: true,
         role: { select: { name: true } }
       }
@@ -141,6 +138,7 @@ export class AuthService {
 
     const user: UserPublicData = {
       id: authAccount.id,
+      username: authAccount.username,
       email: authAccount.email,
       role: authAccount.role.name,
     };
@@ -149,13 +147,9 @@ export class AuthService {
     const refreshToken = await this.generateRefreshToken(user.id);
 
     return {
-      message: 'User created successfully',
+      accessToken,
+      refreshToken,
       user,
-      tokens: {
-        accessToken,
-        refreshToken,
-        expiresIn: ACCESS_TOKEN_EXPIRY,
-      },
     };
   }
 
@@ -181,6 +175,7 @@ export class AuthService {
 
     const publicUser: UserPublicData = {
       id: authAccount.id,
+      username: authAccount.username,
       email: authAccount.email,
       role: authAccount.role.name,
     };
@@ -189,12 +184,9 @@ export class AuthService {
     const refreshToken = await this.generateRefreshToken(publicUser.id);
 
     return {
+      accessToken,
+      refreshToken,
       user: publicUser,
-      tokens: {
-        accessToken,
-        refreshToken,
-        expiresIn: ACCESS_TOKEN_EXPIRY,
-      },
     };
   }
 
@@ -241,7 +233,6 @@ export class AuthService {
     return {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
-      expiresIn: ACCESS_TOKEN_EXPIRY,
     };
   }
 

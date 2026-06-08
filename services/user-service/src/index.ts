@@ -1,5 +1,5 @@
 import express from 'express';
-import { PrismaClient } from './generated/prisma/client';
+import { PrismaClient } from './generated/prisma';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import followersRoutes from './routes/followers/endpoints';
