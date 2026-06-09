@@ -21,6 +21,7 @@ export interface CommentEventPayload {
   commentId: number;
   postId: number;
   userId: number;
+  postAuthorId: number;
   content?: string;
   timestamp: string;
 }

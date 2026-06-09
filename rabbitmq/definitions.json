@@ -117,6 +117,24 @@
       }
     },
     {
+      "name": "notifications.user.friend.cancelled",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.user.friend.declined",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
       "name": "notifications.user.follow.created",
       "vhost": "/",
       "durable": true,
@@ -255,6 +273,22 @@
       "destination": "notifications.user.friend.removed",
       "destination_type": "queue",
       "routing_key": "friend.removed",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.friend.cancelled",
+      "destination_type": "queue",
+      "routing_key": "friend.cancelled",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.friend.declined",
+      "destination_type": "queue",
+      "routing_key": "friend.declined",
       "arguments": {}
     },
     {

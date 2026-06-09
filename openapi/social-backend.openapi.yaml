@@ -828,24 +828,6 @@ paths:
                     total: 1
         '401':
           $ref: '#/components/responses/GatewayAuthErrorResponse'
-  /api/notifications/stream:
-    get:
-      tags: [Notifications]
-      summary: Stream notifications for the current user
-      description: Server-Sent Events endpoint. Events include `notification.created` with a JSON notification payload.
-      operationId: streamNotifications
-      responses:
-        '200':
-          description: SSE stream of notification events.
-          content:
-            text/event-stream:
-              schema:
-                type: string
-                example: |
-                  event: notification.created
-                  data: {"id":1,"recipientUserId":1,"type":"post.created","title":"New post"}
-        '401':
-          $ref: '#/components/responses/GatewayAuthErrorResponse'
   /api/notifications/read-all:
     patch:
       tags: [Notifications]
@@ -1562,9 +1544,21 @@ components:
           type: string
           format: uri
           nullable: true
+    PostAuthor:
+      type: object
+      required: [id, username, avatarUrl]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
     Post:
       type: object
-      required: [id, userId, title, content, imageUrl, isPublished, likesCount, commentsCount, createdAt, updatedAt]
+      required: [id, userId, title, content, imageUrl, isPublished, likesCount, commentsCount, createdAt, updatedAt, author]
       properties:
         id:
           type: integer
@@ -1591,6 +1585,8 @@ components:
         updatedAt:
           type: string
           format: date-time
+        author:
+          $ref: '#/components/schemas/PostAuthor'
     PostEnvelope:
       allOf:
         - $ref: '#/components/schemas/SuccessEnvelope'

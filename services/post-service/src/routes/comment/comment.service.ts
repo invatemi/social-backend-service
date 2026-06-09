@@ -72,13 +72,15 @@ const formatComment = (comment: any): CommentResponse => ({
 
 const publishCommentEvent = async (
   routingKey: 'comment.created' | 'comment.updated' | 'comment.deleted',
-  comment: CommentResponse
+  comment: CommentResponse,
+  postAuthorId: number
 ): Promise<void> => {
   try {
     await eventBus.publish(routingKey, {
       commentId: comment.id,
       postId: comment.postId,
       userId: comment.userId,
+      postAuthorId,
       content: comment.content,
       timestamp: new Date().toISOString(),
     });
@@ -100,7 +102,7 @@ export class CommentService {
     // Проверяем, что пост существует (используем posts, а не post)
     const post = await this.prisma.posts.findUnique({
       where: { id_post: postId },
-      select: { id_post: true },
+      select: { id_post: true, id_user: true },
     });
 
     if (!post) {
@@ -128,7 +130,7 @@ export class CommentService {
     });
 
     const createdComment = formatComment(comment);
-    await publishCommentEvent('comment.created', createdComment);
+    await publishCommentEvent('comment.created', createdComment, post.id_user);
 
     return createdComment;
   }
@@ -205,8 +207,15 @@ export class CommentService {
       data: { content },
     });
 
+    const post = await this.prisma.posts.findUnique({
+      where: { id_post: comment.id_post },
+      select: { id_user: true },
+    });
+
     const formattedComment = formatComment(updatedComment);
-    await publishCommentEvent('comment.updated', formattedComment);
+    if (post) {
+      await publishCommentEvent('comment.updated', formattedComment, post.id_user);
+    }
 
     return formattedComment;
   }
@@ -231,6 +240,10 @@ export class CommentService {
     }
 
     const deletedComment = formatComment(comment);
+    const post = await this.prisma.posts.findUnique({
+      where: { id_post: comment.id_post },
+      select: { id_user: true },
+    });
 
     await this.prisma.$transaction([
       this.prisma.comments.delete({
@@ -245,7 +258,9 @@ export class CommentService {
       }),
     ]);
 
-    await publishCommentEvent('comment.deleted', deletedComment);
+    if (post) {
+      await publishCommentEvent('comment.deleted', deletedComment, post.id_user);
+    }
   }
 
   /** Returns the number of comments for a post. */

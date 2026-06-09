@@ -485,18 +485,6 @@
       }]
     },
     {
-      "endpoint": "/api/notifications/stream",
-      "method": "GET",
-      "timeout": "0s",
-      "input_headers": ["Authorization"],
-      "output_encoding": "no-op",
-      "backend": [{
-        "host": ["http://social-notifications-service:3005"],
-        "url_pattern": "/api/notifications/stream",
-        "encoding": "no-op"
-      }]
-    },
-    {
       "endpoint": "/api/notifications/read-all",
       "method": "PATCH",
       "input_headers": ["Authorization", "Content-Type"],

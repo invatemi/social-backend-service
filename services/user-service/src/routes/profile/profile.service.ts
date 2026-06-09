@@ -42,6 +42,14 @@ export interface SearchUserData {
   bio: string | null;
 }
 
+export interface PostAuthorData {
+  id: number;
+  username: string;
+  avatarUrl: string | null;
+}
+
+const MAX_AUTHORS_BATCH_SIZE = 50;
+
 export interface AvatarUploadUrlData {
   uploadUrl: string;
   publicUrl: string;
@@ -152,6 +160,41 @@ export class ProfileService {
 
     await cache.set(cacheKey, result, USER_CACHE_TTL_SECONDS);
     return result;
+  }
+
+  /** Returns minimal author data for a batch of user IDs (service-to-service). */
+  async getAuthorsByIds(userIds: unknown): Promise<PostAuthorData[]> {
+    if (!Array.isArray(userIds)) {
+      throw new ValidationError('userIds must be an array', 'userIds');
+    }
+
+    const uniqueIds = [...new Set(
+      userIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )];
+
+    if (uniqueIds.length === 0) {
+      return [];
+    }
+
+    if (uniqueIds.length > MAX_AUTHORS_BATCH_SIZE) {
+      throw new ValidationError(
+        `userIds must contain at most ${MAX_AUTHORS_BATCH_SIZE} items`,
+        'userIds'
+      );
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, name: true, avatarUrl: true },
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      username: user.name,
+      avatarUrl: user.avatarUrl,
+    }));
   }
 
   /** Searches users by name or email. */

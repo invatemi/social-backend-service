@@ -24,6 +24,12 @@ const avatarUploadUrlQuerySchema = z
   })
   .strict();
 
+const authorsBatchSchema = z
+  .object({
+    userIds: z.array(z.number().int().positive()).max(50),
+  })
+  .strict();
+
 router.get(
   '/me',
   krakendAuthMiddleware,
@@ -83,6 +89,22 @@ router.get(
     }
   }
 );
+
+router.post('/internal/authors', async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma = (req as any).prisma as PrismaClient;
+    const profileService = new ProfileService(prisma);
+    const { userIds } = authorsBatchSchema.parse(req.body);
+    const authors = await profileService.getAuthorsByIds(userIds);
+
+    res.status(200).json({
+      success: true,
+      authors,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get('/search', async (req: KrakenDRequest, res: Response, next: NextFunction) => {
   try {

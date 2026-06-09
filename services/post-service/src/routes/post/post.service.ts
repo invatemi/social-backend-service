@@ -8,6 +8,7 @@ import {
   PostAlreadyDraftError,
 } from './post.errors';
 import { cache } from '../../middleware/redis';
+import { fetchAuthorsByIds, type PostAuthor } from '../../clients/user-client';
 
 // ==================== TYPES ====================
 export interface CreatePostData {
@@ -37,13 +38,25 @@ export interface PostResponse {
   updatedAt: Date;
 }
 
+export interface EnrichedPostResponse extends PostResponse {
+  author: PostAuthor;
+}
+
 export interface PostsListResponse {
-  posts: PostResponse[];
+  posts: EnrichedPostResponse[];
   total: number;
   page: number;
   pageSize: number;
   totalPages: number;
 }
+
+type CachedPostsListResponse = {
+  posts: PostResponse[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
 
 export interface PaginationOptions {
   page?: number;
@@ -182,6 +195,24 @@ const validateImageUrl = (imageUrl: unknown): string | undefined => {
   }
 };
 
+const enrichPostsWithAuthors = async (posts: PostResponse[]): Promise<EnrichedPostResponse[]> => {
+  const authorsMap = await fetchAuthorsByIds(posts.map((post) => post.userId));
+
+  return posts.map((post) => ({
+    ...post,
+    author: authorsMap.get(post.userId) ?? {
+      id: post.userId,
+      username: `user_${post.userId}`,
+      avatarUrl: null,
+    },
+  }));
+};
+
+const enrichPostWithAuthor = async (post: PostResponse): Promise<EnrichedPostResponse> => {
+  const [enriched] = await enrichPostsWithAuthors([post]);
+  return enriched;
+};
+
 // ==================== POST SERVICE ====================
 export class PostService {
   constructor(private prisma: PrismaClient) {}
@@ -230,9 +261,12 @@ export class PostService {
 
     const where = onlyPublished ? { is_published: true } : {};
     const cacheKey = postCacheKeys.feed(page, pageSize, onlyPublished);
-    const cached = await cache.get<PostsListResponse>(cacheKey);
+    const cached = await cache.get<CachedPostsListResponse>(cacheKey);
     if (cached) {
-      return cached;
+      return {
+        ...cached,
+        posts: await enrichPostsWithAuthors(cached.posts),
+      };
     }
 
     const [posts, total] = await Promise.all([
@@ -245,7 +279,7 @@ export class PostService {
       this.prisma.posts.count({ where }),
     ]);
 
-    const result = {
+    const rawResult: CachedPostsListResponse = {
       posts: posts.map(this.formatPost),
       total,
       page,
@@ -253,8 +287,11 @@ export class PostService {
       totalPages: Math.ceil(total / pageSize),
     };
 
-    await cache.set(cacheKey, result, POST_LIST_CACHE_TTL_SECONDS);
-    return result;
+    await cache.set(cacheKey, rawResult, POST_LIST_CACHE_TTL_SECONDS);
+    return {
+      ...rawResult,
+      posts: await enrichPostsWithAuthors(rawResult.posts),
+    };
   }
 
   /** Returns paginated posts for a user. */
@@ -280,9 +317,12 @@ export class PostService {
       ...(onlyPublished && { is_published: true }),
     };
     const cacheKey = postCacheKeys.byUser(validUserId, page, pageSize, onlyPublished);
-    const cached = await cache.get<PostsListResponse>(cacheKey);
+    const cached = await cache.get<CachedPostsListResponse>(cacheKey);
     if (cached) {
-      return cached;
+      return {
+        ...cached,
+        posts: await enrichPostsWithAuthors(cached.posts),
+      };
     }
 
     const [posts, total] = await Promise.all([
@@ -295,7 +335,7 @@ export class PostService {
       this.prisma.posts.count({ where }),
     ]);
 
-    const result = {
+    const rawResult: CachedPostsListResponse = {
       posts: posts.map(this.formatPost),
       total,
       page,
@@ -303,17 +343,20 @@ export class PostService {
       totalPages: Math.ceil(total / pageSize),
     };
 
-    await cache.set(cacheKey, result, POST_LIST_CACHE_TTL_SECONDS);
-    return result;
+    await cache.set(cacheKey, rawResult, POST_LIST_CACHE_TTL_SECONDS);
+    return {
+      ...rawResult,
+      posts: await enrichPostsWithAuthors(rawResult.posts),
+    };
   }
 
   /** Returns a post by id. */
-  async getPostById(postId: number): Promise<PostResponse> {
+  async getPostById(postId: number): Promise<EnrichedPostResponse> {
     const validPostId = validateId(postId, 'postId');
     const cacheKey = postCacheKeys.byId(validPostId);
     const cached = await cache.get<PostResponse>(cacheKey);
     if (cached) {
-      return cached;
+      return enrichPostWithAuthor(cached);
     }
 
     const post = await this.prisma.posts.findUnique({
@@ -326,7 +369,7 @@ export class PostService {
 
     const result = this.formatPost(post);
     await cache.set(cacheKey, result, POST_CACHE_TTL_SECONDS);
-    return result;
+    return enrichPostWithAuthor(result);
   }
 
   /** Updates an owned post and publishes a post.updated event. */
@@ -508,9 +551,12 @@ export class PostService {
 
     const where = { id_user: validUserId };
     const cacheKey = postCacheKeys.ownByUser(validUserId, page, pageSize);
-    const cached = await cache.get<PostsListResponse>(cacheKey);
+    const cached = await cache.get<CachedPostsListResponse>(cacheKey);
     if (cached) {
-      return cached;
+      return {
+        ...cached,
+        posts: await enrichPostsWithAuthors(cached.posts),
+      };
     }
 
     const [posts, total] = await Promise.all([
@@ -523,7 +569,7 @@ export class PostService {
       this.prisma.posts.count({ where }),
     ]);
 
-    const result = {
+    const rawResult: CachedPostsListResponse = {
       posts: posts.map(this.formatPost),
       total,
       page,
@@ -531,8 +577,11 @@ export class PostService {
       totalPages: Math.ceil(total / pageSize),
     };
 
-    await cache.set(cacheKey, result, POST_LIST_CACHE_TTL_SECONDS);
-    return result;
+    await cache.set(cacheKey, rawResult, POST_LIST_CACHE_TTL_SECONDS);
+    return {
+      ...rawResult,
+      posts: await enrichPostsWithAuthors(rawResult.posts),
+    };
   }
 
   /** Maps a database post row to the API response shape. */

@@ -9,6 +9,8 @@ export type UserEventRoutingKey =
   | 'friend.requested'
   | 'friend.accepted'
   | 'friend.removed'
+  | 'friend.cancelled'
+  | 'friend.declined'
   | 'follow.created'
   | 'follow.deleted'
   | 'user.updated'
@@ -43,6 +45,13 @@ export interface FriendRemovedPayload {
   timestamp: string;
 }
 
+export interface FriendStatusPayload {
+  requestId: number;
+  fromUser: UserSummary;
+  toUser: UserSummary;
+  timestamp: string;
+}
+
 export interface FollowPayload {
   followerUser: UserSummary;
   followingUser: UserSummary;
@@ -71,6 +80,7 @@ export type UserEventPayload =
   | FriendRequestedPayload
   | FriendAcceptedPayload
   | FriendRemovedPayload
+  | FriendStatusPayload
   | FollowPayload
   | UserUpdatedPayload
   | UserRegisteredPayload;

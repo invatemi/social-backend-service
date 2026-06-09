@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { eventBus } from '../middleware/event-bus';
+import { dispatchPostFeedEvent } from './post-socket.dispatcher';
 
 const QUEUE_NAME = 'notifications.post.updated';
 
@@ -22,7 +23,10 @@ export const registerPostUpdatedConsumer = async (): Promise<void> => {
         const payload = JSON.parse(message.content.toString('utf8')) as unknown;
         const event = postUpdatedEventSchema.parse(payload);
 
-        console.log('[Consumer:post.updated] Received:', event);
+        if (event.isPublished) {
+          await dispatchPostFeedEvent('post:updated', event);
+        }
+
         ack();
       } catch (error) {
         console.log('[Consumer:post.updated] Failed to process message:', error);

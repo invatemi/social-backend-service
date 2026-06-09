@@ -84,7 +84,12 @@ const formatFriendRequest = (request: {
 });
 
 const publishFriendEvent = async (
-  routingKey: 'friend.requested' | 'friend.accepted' | 'friend.removed',
+  routingKey:
+    | 'friend.requested'
+    | 'friend.accepted'
+    | 'friend.removed'
+    | 'friend.cancelled'
+    | 'friend.declined',
   payload: Parameters<typeof eventBus.publish>[1]
 ): Promise<void> => {
   try {
@@ -316,6 +321,12 @@ export class FriendsService {
     });
 
     await invalidateFriendCaches(request.fromUserId, request.toUserId);
+    await publishFriendEvent('friend.cancelled', {
+      requestId: updatedRequest.id,
+      fromUser: updatedRequest.from,
+      toUser: updatedRequest.to,
+      timestamp: new Date().toISOString(),
+    });
     return { request: formatFriendRequest(updatedRequest) };
   }
 
@@ -350,6 +361,12 @@ export class FriendsService {
     });
 
     await invalidateFriendCaches(request.fromUserId, request.toUserId);
+    await publishFriendEvent('friend.declined', {
+      requestId: updatedRequest.id,
+      fromUser: updatedRequest.from,
+      toUser: updatedRequest.to,
+      timestamp: new Date().toISOString(),
+    });
     return { request: formatFriendRequest(updatedRequest) };
   }
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { eventBus } from '../middleware/event-bus';
+import { dispatchPostFeedEvent } from './post-socket.dispatcher';
 
 const QUEUE_NAME = 'notifications.post.deleted';
 
@@ -22,7 +23,7 @@ export const registerPostDeletedConsumer = async (): Promise<void> => {
         const payload = JSON.parse(message.content.toString('utf8')) as unknown;
         const event = postDeletedEventSchema.parse(payload);
 
-        console.log('[Consumer:post.deleted] Received:', event);
+        await dispatchPostFeedEvent('post:deleted', event);
         ack();
       } catch (error) {
         console.log('[Consumer:post.deleted] Failed to process message:', error);

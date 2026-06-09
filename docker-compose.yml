@@ -198,8 +198,11 @@ services:
       REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-5000}
       POST_CACHE_TTL_SECONDS: ${POST_CACHE_TTL_SECONDS:-300}
       POST_LIST_CACHE_TTL_SECONDS: ${POST_LIST_CACHE_TTL_SECONDS:-60}
+      USER_SERVICE_URL: ${USER_SERVICE_URL:-http://social-user-service:3002}
+      USER_SERVICE_TIMEOUT_MS: ${USER_SERVICE_TIMEOUT_MS:-3000}
     depends_on:
       post-db: { condition: service_healthy }
+      social-user-service: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis: { condition: service_healthy }
     healthcheck:
@@ -242,8 +245,13 @@ services:
       args:
         SERVICE_PORT: ${NOTIF_PORT:-3005}
     container_name: social-notifications
+    ports:
+      - "${NOTIF_PORT:-3005}:${NOTIF_PORT:-3005}"
     environment:
       PORT: ${NOTIF_PORT:-3005}
+      JWT_SECRET: ${JWT_SECRET}
+      USER_SERVICE_URL: ${USER_SERVICE_URL:-http://social-user-service:3002}
+      USER_SERVICE_TIMEOUT_MS: ${USER_SERVICE_TIMEOUT_MS:-3000}
       DB_HOST: ${NOTIF_DB_HOST:-notif-db}
       DB_PORT: 5432
       DB_NAME: ${NOTIF_DB_NAME}
@@ -254,6 +262,7 @@ services:
     depends_on:
       notif-db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
+      social-user-service: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');const p=process.env.PORT||3005;const r=h.get('http://127.0.0.1:'+p+'/health',res=>process.exit(res.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.setTimeout(2000,()=>process.exit(1));\""]
       interval: 10s

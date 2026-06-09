@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient } from '../../generated/prisma/client';
-import { publishNotificationToUser } from './notification-stream';
+import { publishNotificationToUser } from './socket-hub';
+import { mapNotificationToSseEvent } from './sse-event-mapper';
 
 export interface CreateNotificationInput {
   recipientUserId: number;
@@ -23,13 +24,20 @@ const validateUserId = (userId: unknown): number => {
 export class NotificationsService {
   constructor(private prisma: PrismaClient) {}
 
-  /** Creates a notification and pushes it to active SSE clients. */
+  /** Creates a notification and pushes it to active WebSocket clients. */
   async createNotification(input: CreateNotificationInput) {
     const notification = await this.prisma.notification.create({
       data: input,
     });
 
-    publishNotificationToUser(notification.recipientUserId, notification);
+    const sseEvent = mapNotificationToSseEvent(notification);
+    if (sseEvent) {
+      publishNotificationToUser(
+        notification.recipientUserId,
+        sseEvent.event,
+        sseEvent.data
+      );
+    }
 
     return notification;
   }

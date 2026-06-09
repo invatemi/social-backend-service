@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { PrismaClient } from '../generated/prisma/client';
 import { eventBus } from '../middleware/event-bus';
 import { NotificationsService } from '../routes/notifications/notifications.service';
+import { mapFriendStatusToSseEvent } from '../routes/notifications/sse-event-mapper';
+import { publishSocketEvent } from '../routes/notifications/socket-hub';
 
 const userSummarySchema = z.object({
   id: z.number().int().positive(),
@@ -11,6 +13,13 @@ const userSummarySchema = z.object({
 });
 
 const friendRequestedSchema = z.object({
+  requestId: z.number().int().positive(),
+  fromUser: userSummarySchema,
+  toUser: userSummarySchema,
+  timestamp: z.string().datetime(),
+});
+
+const friendStatusSchema = z.object({
   requestId: z.number().int().positive(),
   fromUser: userSummarySchema,
   toUser: userSummarySchema,
@@ -138,6 +147,56 @@ export const registerUserEventConsumers = async (
     {
       exchangeName: 'user.events',
       routingKey: 'friend.removed',
+    }
+  );
+
+  await eventBus.subscribe(
+    'notifications.user.friend.cancelled',
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(friendStatusSchema, message.content);
+
+        const sseEvent = mapFriendStatusToSseEvent('friend_request_cancelled', {
+          requestId: event.requestId,
+          fromUser: event.fromUser,
+          toUser: event.toUser,
+        });
+        publishSocketEvent(event.toUser.id, sseEvent.event, sseEvent.data);
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:friend.cancelled] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'user.events',
+      routingKey: 'friend.cancelled',
+    }
+  );
+
+  await eventBus.subscribe(
+    'notifications.user.friend.declined',
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(friendStatusSchema, message.content);
+
+        const sseEvent = mapFriendStatusToSseEvent('friend_declined', {
+          requestId: event.requestId,
+          fromUser: event.fromUser,
+          toUser: event.toUser,
+        });
+        publishSocketEvent(event.fromUser.id, sseEvent.event, sseEvent.data);
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:friend.declined] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: 'user.events',
+      routingKey: 'friend.declined',
     }
   );
 
