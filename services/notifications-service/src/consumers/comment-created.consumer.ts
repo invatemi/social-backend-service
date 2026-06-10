@@ -9,7 +9,8 @@ const commentCreatedEventSchema = z.object({
   postId: z.number().int().positive(),
   userId: z.number().int().positive(),
   postAuthorId: z.number().int().positive(),
-  content: z.string().min(1),
+  content: z.string(),
+  commentsCount: z.number().int().min(0),
   timestamp: z.string().datetime(),
 });
 
@@ -22,7 +23,7 @@ export const registerCommentCreatedConsumer = async (): Promise<void> => {
         const payload = JSON.parse(message.content.toString('utf8')) as unknown;
         const event = commentCreatedEventSchema.parse(payload);
 
-        dispatchCommentEvent('comment:created', event);
+        await dispatchCommentEvent('comment:created', event);
         ack();
       } catch (error) {
         console.log('[Consumer:comment.created] Failed to process message:', error);

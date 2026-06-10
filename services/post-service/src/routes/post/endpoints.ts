@@ -163,6 +163,56 @@ router.post(
   }
 );
 
+// Поставить или убрать лайк
+router.post(
+  '/:id/like',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const postService = new PostService(prisma);
+
+      const postId = parseInt(String(req.params.id), 10);
+      const userId = req.user!.userId;
+
+      const result = await postService.toggleLike(postId, userId);
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/feed",
+  krakendAuthMiddleware, 
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma = (req as any).prisma as PrismaClient;
+    const postService = new PostService(prisma);
+
+    const userId = req.user!.userId;
+    const page = parseInt(String(req.query.page || '1'), 10);
+    const pageSize = parseInt(String(req.query.pageSize || '10'), 10);
+
+    const result = await postService.getFeed(userId, {
+      page,
+      pageSize,
+    });
+
+    res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+})
+
 // ==================== ПУБЛИЧНЫЕ ЭНДПОИНТЫ ====================
 
 // Получить все опубликованные посты (лента)

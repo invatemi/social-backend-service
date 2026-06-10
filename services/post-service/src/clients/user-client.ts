@@ -60,3 +60,30 @@ export const fetchAuthorsByIds = async (userIds: number[]): Promise<Map<number, 
 
   return authorsMap;
 };
+
+export const fetchFeedSourceUserIds = async (userId: number): Promise<number[]> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), USER_SERVICE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${USER_SERVICE_URL}/api/users/internal/feed-sources`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      console.log(`[UserClient] Feed sources request failed with status ${response.status}`);
+      return [];
+    }
+
+    const data = (await response.json()) as { userIds?: number[] };
+    return [...new Set((data.userIds ?? []).filter((id) => Number.isInteger(id) && id > 0))];
+  } catch (error) {
+    console.log('[UserClient] Failed to fetch feed sources:', error);
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+};

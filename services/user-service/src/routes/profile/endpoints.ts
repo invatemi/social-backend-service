@@ -30,6 +30,12 @@ const authorsBatchSchema = z
   })
   .strict();
 
+const feedSourcesSchema = z
+  .object({
+    userId: z.number().int().positive(),
+  })
+  .strict();
+
 router.get(
   '/me',
   krakendAuthMiddleware,
@@ -89,6 +95,38 @@ router.get(
     }
   }
 );
+
+router.post('/internal/post-audience', async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma = (req as any).prisma as PrismaClient;
+    const profileService = new ProfileService(prisma);
+    const { userId } = feedSourcesSchema.parse(req.body);
+    const userIds = await profileService.getPostAudienceUserIds(userId);
+
+    res.status(200).json({
+      success: true,
+      userIds,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/internal/feed-sources', async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma = (req as any).prisma as PrismaClient;
+    const profileService = new ProfileService(prisma);
+    const { userId } = feedSourcesSchema.parse(req.body);
+    const userIds = await profileService.getFeedSourceUserIds(userId);
+
+    res.status(200).json({
+      success: true,
+      userIds,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.post('/internal/authors', async (req: KrakenDRequest, res: Response, next: NextFunction) => {
   try {

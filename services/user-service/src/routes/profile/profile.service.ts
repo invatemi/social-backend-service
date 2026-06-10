@@ -162,6 +162,74 @@ export class ProfileService {
     return result;
   }
 
+  /** Returns user IDs whose published posts should appear in the viewer's feed. */
+  async getFeedSourceUserIds(userId: unknown): Promise<number[]> {
+    const id = validateUserId(userId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!user) throw new UserNotFoundError(id);
+
+    const [friendships, followers] = await Promise.all([
+      this.prisma.friendship.findMany({
+        where: { OR: [{ userId: id }, { friendId: id }] },
+        select: { userId: true, friendId: true },
+      }),
+      this.prisma.follow.findMany({
+        where: { followingId: id },
+        select: { followerId: true },
+      }),
+    ]);
+
+    const sourceIds = new Set<number>();
+
+    for (const friendship of friendships) {
+      sourceIds.add(friendship.userId === id ? friendship.friendId : friendship.userId);
+    }
+
+    for (const follow of followers) {
+      sourceIds.add(follow.followerId);
+    }
+
+    return [...sourceIds];
+  }
+
+  /** Returns user IDs that should receive realtime updates for an author's posts. */
+  async getPostAudienceUserIds(userId: unknown): Promise<number[]> {
+    const id = validateUserId(userId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!user) throw new UserNotFoundError(id);
+
+    const [friendships, following] = await Promise.all([
+      this.prisma.friendship.findMany({
+        where: { OR: [{ userId: id }, { friendId: id }] },
+        select: { userId: true, friendId: true },
+      }),
+      this.prisma.follow.findMany({
+        where: { followerId: id },
+        select: { followingId: true },
+      }),
+    ]);
+
+    const audienceIds = new Set<number>([id]);
+
+    for (const friendship of friendships) {
+      audienceIds.add(friendship.userId === id ? friendship.friendId : friendship.userId);
+    }
+
+    for (const follow of following) {
+      audienceIds.add(follow.followingId);
+    }
+
+    return [...audienceIds];
+  }
+
   /** Returns minimal author data for a batch of user IDs (service-to-service). */
   async getAuthorsByIds(userIds: unknown): Promise<PostAuthorData[]> {
     if (!Array.isArray(userIds)) {

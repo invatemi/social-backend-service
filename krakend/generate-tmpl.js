@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const config = JSON.parse(fs.readFileSync('krakend/krakend.json', 'utf8'));
+const config = JSON.parse(fs.readFileSync('krakend.json', 'utf8'));
 
 delete config.extra_config['auth/validator'];
 
@@ -32,5 +32,5 @@ const jwtValidatorBlock = `{
 
 tmpl = tmpl.replace(/"__JWT_VALIDATOR__"/g, jwtValidatorBlock);
 
-fs.writeFileSync('krakend/krakend.tmpl', tmpl);
+fs.writeFileSync('krakend.tmpl', tmpl);
 console.log('Generated krakend/krakend.tmpl');

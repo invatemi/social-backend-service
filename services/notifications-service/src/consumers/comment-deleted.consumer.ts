@@ -9,7 +9,8 @@ const commentDeletedEventSchema = z.object({
   postId: z.number().int().positive(),
   userId: z.number().int().positive(),
   postAuthorId: z.number().int().positive(),
-  content: z.string().min(1).optional(),
+  content: z.string().optional(),
+  commentsCount: z.number().int().min(0),
   timestamp: z.string().datetime(),
 });
 
@@ -22,7 +23,7 @@ export const registerCommentDeletedConsumer = async (): Promise<void> => {
         const payload = JSON.parse(message.content.toString('utf8')) as unknown;
         const event = commentDeletedEventSchema.parse(payload);
 
-        dispatchCommentEvent('comment:deleted', event);
+        await dispatchCommentEvent('comment:deleted', event);
         ack();
       } catch (error) {
         console.log('[Consumer:comment.deleted] Failed to process message:', error);

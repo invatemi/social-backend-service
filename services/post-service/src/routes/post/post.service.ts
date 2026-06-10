@@ -8,13 +8,17 @@ import {
   PostAlreadyDraftError,
 } from './post.errors';
 import { cache } from '../../middleware/redis';
-import { fetchAuthorsByIds, type PostAuthor } from '../../clients/user-client';
+import {
+  fetchAuthorsByIds,
+  fetchFeedSourceUserIds,
+  type PostAuthor,
+} from '../../clients/user-client';
 
 // ==================== TYPES ====================
 export interface CreatePostData {
   userId: number;
   title?: string;
-  content: string;
+  content?: string;
   imageUrl?: string;
   isPublished?: boolean;
 }
@@ -91,6 +95,8 @@ const postCacheKeys = {
   byId: (postId: number) => `post:${postId}`,
   feed: (page: number, pageSize: number, onlyPublished: boolean) =>
     `posts:feed:published:${onlyPublished}:page:${page}:size:${pageSize}`,
+  userFeed: (userId: number, page: number, pageSize: number, onlyPublished: boolean) =>
+    `posts:feed:user:${userId}:published:${onlyPublished}:page:${page}:size:${pageSize}`,
   byUser: (userId: number, page: number, pageSize: number, onlyPublished: boolean) =>
     `posts:user:${userId}:published:${onlyPublished}:page:${page}:size:${pageSize}`,
   ownByUser: (userId: number, page: number, pageSize: number) =>
@@ -116,10 +122,35 @@ const publishPostEvent = async (
       content: post.content,
       imageUrl: post.imageUrl,
       isPublished: post.isPublished,
+      likesCount: post.likesCount,
+      commentsCount: post.commentsCount,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.log(`[EventBus] Failed to publish ${routingKey}:`, error);
+  }
+};
+
+const publishLikeEvent = async (
+  postAuthorId: number,
+  data: {
+    postId: number;
+    userId: number;
+    liked: boolean;
+    likesCount: number;
+  }
+): Promise<void> => {
+  try {
+    await eventBus.publish('post.liked', {
+      postId: data.postId,
+      userId: data.userId,
+      postAuthorId,
+      liked: data.liked,
+      likesCount: data.likesCount,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.log('[EventBus] Failed to publish post.liked:', error);
   }
 };
 
@@ -158,17 +189,43 @@ const validateContent = (content: unknown): string => {
   if (typeof content !== 'string') {
     throw new PostValidationError('Content must be a string', 'content');
   }
-  
+
   const trimmed = content.trim();
-  
+
   if (trimmed.length === 0) {
     throw new PostValidationError('Content cannot be empty', 'content');
   }
-  
+
   if (trimmed.length > 10000) {
     throw new PostValidationError('Content must be less than 10000 characters', 'content');
   }
-  
+
+  return trimmed;
+};
+
+const validateCreateContent = (content: unknown, imageUrl?: string): string => {
+  if (content === undefined || content === null) {
+    if (imageUrl) {
+      return '';
+    }
+
+    throw new PostValidationError('Content must be a string', 'content');
+  }
+
+  if (typeof content !== 'string') {
+    throw new PostValidationError('Content must be a string', 'content');
+  }
+
+  const trimmed = content.trim();
+
+  if (trimmed.length === 0 && !imageUrl) {
+    throw new PostValidationError('Content cannot be empty', 'content');
+  }
+
+  if (trimmed.length > 10000) {
+    throw new PostValidationError('Content must be less than 10000 characters', 'content');
+  }
+
   return trimmed;
 };
 
@@ -221,8 +278,8 @@ export class PostService {
   async createPost(data: CreatePostData): Promise<PostResponse> {
     const userId = validateId(data.userId, 'userId');
     const title = validateTitle(data.title);
-    const content = validateContent(data.content);
     const imageUrl = validateImageUrl(data.imageUrl);
+    const content = validateCreateContent(data.content, imageUrl);
     const isPublished = data.isPublished ?? true;
 
     const post = await this.prisma.posts.create({
@@ -268,6 +325,81 @@ export class PostService {
         posts: await enrichPostsWithAuthors(cached.posts),
       };
     }
+
+    const [posts, total] = await Promise.all([
+      this.prisma.posts.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.posts.count({ where }),
+    ]);
+
+    const rawResult: CachedPostsListResponse = {
+      posts: posts.map(this.formatPost),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+
+    await cache.set(cacheKey, rawResult, POST_LIST_CACHE_TTL_SECONDS);
+    return {
+      ...rawResult,
+      posts: await enrichPostsWithAuthors(rawResult.posts),
+    };
+  }
+
+  /** Returns paginated published posts from the user's friends and followers. */
+  async getFeed(
+    userId: number,
+    options: PaginationOptions = {}
+  ): Promise<PostsListResponse> {
+    const validUserId = validateId(userId, 'userId');
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 10;
+    const onlyPublished = options.onlyPublished ?? true;
+
+    if (page < 1) {
+      throw new PostValidationError('Page must be greater than 0', 'page');
+    }
+
+    if (pageSize < 1 || pageSize > 100) {
+      throw new PostValidationError('Page size must be between 1 and 100', 'pageSize');
+    }
+
+    const cacheKey = postCacheKeys.userFeed(validUserId, page, pageSize, onlyPublished);
+    const cached = await cache.get<CachedPostsListResponse>(cacheKey);
+    if (cached) {
+      return {
+        ...cached,
+        posts: await enrichPostsWithAuthors(cached.posts),
+      };
+    }
+
+    const sourceUserIds = await fetchFeedSourceUserIds(validUserId);
+
+    if (sourceUserIds.length === 0) {
+      const emptyResult: CachedPostsListResponse = {
+        posts: [],
+        total: 0,
+        page,
+        pageSize,
+        totalPages: 0,
+      };
+
+      await cache.set(cacheKey, emptyResult, POST_LIST_CACHE_TTL_SECONDS);
+      return {
+        ...emptyResult,
+        posts: [],
+      };
+    }
+
+    const where = {
+      id_user: { in: sourceUserIds },
+      ...(onlyPublished && { is_published: true }),
+    };
 
     const [posts, total] = await Promise.all([
       this.prisma.posts.findMany({
@@ -582,6 +714,85 @@ export class PostService {
       ...rawResult,
       posts: await enrichPostsWithAuthors(rawResult.posts),
     };
+  }
+
+  /** Toggles a like for a post and returns the updated like state. */
+  async toggleLike(
+    postId: number,
+    userId: number
+  ): Promise<{ liked: boolean; likesCount: number }> {
+    const validPostId = validateId(postId, 'postId');
+    const validUserId = validateId(userId, 'userId');
+
+    const post = await this.prisma.posts.findUnique({
+      where: { id_post: validPostId },
+      select: { id_post: true, id_user: true },
+    });
+
+    if (!post) {
+      throw new PostNotFoundError(validPostId);
+    }
+
+    const existingLike = await this.prisma.likes.findFirst({
+      where: {
+        id_post: validPostId,
+        id_user: validUserId,
+      },
+      select: { id_like: true },
+    });
+
+    if (existingLike) {
+      await this.prisma.$transaction([
+        this.prisma.likes.delete({
+          where: { id_like: existingLike.id_like },
+        }),
+        this.prisma.posts.update({
+          where: { id_post: validPostId },
+          data: {
+            likes_count: { decrement: 1 },
+            updated_at: new Date(),
+          },
+        }),
+      ]);
+    } else {
+      await this.prisma.$transaction([
+        this.prisma.likes.create({
+          data: {
+            id_post: validPostId,
+            id_user: validUserId,
+          },
+        }),
+        this.prisma.posts.update({
+          where: { id_post: validPostId },
+          data: {
+            likes_count: { increment: 1 },
+            updated_at: new Date(),
+          },
+        }),
+      ]);
+    }
+
+    const updatedPost = await this.prisma.posts.findUnique({
+      where: { id_post: validPostId },
+      select: { likes_count: true },
+    });
+
+    const liked = !existingLike;
+    const likesCount = updatedPost?.likes_count ?? 0;
+
+    await Promise.all([
+      cache.del(postCacheKeys.byId(validPostId)),
+      invalidatePostLists(post.id_user),
+    ]);
+
+    await publishLikeEvent(post.id_user, {
+      postId: validPostId,
+      userId: validUserId,
+      liked,
+      likesCount,
+    });
+
+    return { liked, likesCount };
   }
 
   /** Maps a database post row to the API response shape. */

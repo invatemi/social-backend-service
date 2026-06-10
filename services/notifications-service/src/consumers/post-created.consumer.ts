@@ -8,9 +8,11 @@ const postCreatedEventSchema = z.object({
   postId: z.number().int().positive(),
   userId: z.number().int().positive(),
   title: z.string().nullable(),
-  content: z.string().min(1),
+  content: z.string(),
   imageUrl: z.string().nullable(),
   isPublished: z.boolean(),
+  likesCount: z.number().int().min(0).default(0),
+  commentsCount: z.number().int().min(0).default(0),
   timestamp: z.string().datetime(),
 });
 

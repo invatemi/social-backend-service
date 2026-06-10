@@ -73,7 +73,8 @@ const formatComment = (comment: any): CommentResponse => ({
 const publishCommentEvent = async (
   routingKey: 'comment.created' | 'comment.updated' | 'comment.deleted',
   comment: CommentResponse,
-  postAuthorId: number
+  postAuthorId: number,
+  commentsCount: number
 ): Promise<void> => {
   try {
     await eventBus.publish(routingKey, {
@@ -82,6 +83,7 @@ const publishCommentEvent = async (
       userId: comment.userId,
       postAuthorId,
       content: comment.content,
+      commentsCount,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -109,8 +111,8 @@ export class CommentService {
       throw new PostNotFoundError(postId);
     }
 
-    const comment = await this.prisma.$transaction(async (tx) => {
-      const createdComment = await tx.comments.create({
+    const { createdComment, commentsCount } = await this.prisma.$transaction(async (tx) => {
+      const commentRow = await tx.comments.create({
         data: {
           id_post: postId,
           id_user: userId,
@@ -118,21 +120,30 @@ export class CommentService {
         },
       });
 
-      await tx.posts.update({
+      const updatedPost = await tx.posts.update({
         where: { id_post: postId },
         data: {
           comments_count: { increment: 1 },
           updated_at: new Date(),
         },
+        select: { comments_count: true },
       });
 
-      return createdComment;
+      return {
+        createdComment: commentRow,
+        commentsCount: updatedPost.comments_count,
+      };
     });
 
-    const createdComment = formatComment(comment);
-    await publishCommentEvent('comment.created', createdComment, post.id_user);
+    const formattedComment = formatComment(createdComment);
+    await publishCommentEvent(
+      'comment.created',
+      formattedComment,
+      post.id_user,
+      commentsCount
+    );
 
-    return createdComment;
+    return formattedComment;
   }
 
   /** Returns comments for a post. */
@@ -209,12 +220,17 @@ export class CommentService {
 
     const post = await this.prisma.posts.findUnique({
       where: { id_post: comment.id_post },
-      select: { id_user: true },
+      select: { id_user: true, comments_count: true },
     });
 
     const formattedComment = formatComment(updatedComment);
     if (post) {
-      await publishCommentEvent('comment.updated', formattedComment, post.id_user);
+      await publishCommentEvent(
+        'comment.updated',
+        formattedComment,
+        post.id_user,
+        post.comments_count
+      );
     }
 
     return formattedComment;
@@ -240,26 +256,29 @@ export class CommentService {
     }
 
     const deletedComment = formatComment(comment);
-    const post = await this.prisma.posts.findUnique({
-      where: { id_post: comment.id_post },
-      select: { id_user: true },
-    });
 
-    await this.prisma.$transaction([
-      this.prisma.comments.delete({
+    const updatedPost = await this.prisma.$transaction(async (tx) => {
+      await tx.comments.delete({
         where: { id_comment: validCommentId },
-      }),
-      this.prisma.posts.update({
+      });
+
+      return tx.posts.update({
         where: { id_post: comment.id_post },
         data: {
           comments_count: { decrement: 1 },
           updated_at: new Date(),
         },
-      }),
-    ]);
+        select: { id_user: true, comments_count: true },
+      });
+    });
 
-    if (post) {
-      await publishCommentEvent('comment.deleted', deletedComment, post.id_user);
+    if (updatedPost) {
+      await publishCommentEvent(
+        'comment.deleted',
+        deletedComment,
+        updatedPost.id_user,
+        updatedPost.comments_count
+      );
     }
   }
 

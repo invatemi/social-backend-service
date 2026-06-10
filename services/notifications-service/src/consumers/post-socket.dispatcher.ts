@@ -1,7 +1,7 @@
-import { fetchFollowerIds } from '../clients/user-client';
+import { fetchPostAudienceUserIds } from '../clients/user-client';
 import { publishSocketEvent, publishSocketEventToMany } from '../routes/notifications/socket-hub';
 
-/** Notifies followers and the author about a new or updated post. */
+/** Notifies the post audience about feed changes. */
 export const dispatchPostFeedEvent = async (
   event: 'post:created' | 'post:updated' | 'post:deleted',
   data: {
@@ -11,26 +11,29 @@ export const dispatchPostFeedEvent = async (
     content?: string;
     imageUrl?: string | null;
     isPublished?: boolean;
+    likesCount?: number;
+    commentsCount?: number;
     timestamp: string;
   }
 ): Promise<void> => {
-  const followerIds = await fetchFollowerIds(data.userId);
-  const recipientIds = [...new Set([data.userId, ...followerIds])];
+  const recipientIds = await fetchPostAudienceUserIds(data.userId);
 
   publishSocketEventToMany(recipientIds, event, {
     id: data.postId,
     postId: data.postId,
     userId: data.userId,
     title: data.title ?? null,
-    content: data.content,
+    content: data.content ?? '',
     imageUrl: data.imageUrl ?? null,
     isPublished: data.isPublished,
+    likesCount: data.likesCount ?? 0,
+    commentsCount: data.commentsCount ?? 0,
     createdAt: data.timestamp,
   });
 };
 
-/** Notifies the post author about comment activity. */
-export const dispatchCommentEvent = (
+/** Notifies the post audience about comment activity. */
+export const dispatchCommentEvent = async (
   event: 'comment:created' | 'comment:deleted',
   data: {
     commentId: number;
@@ -38,31 +41,37 @@ export const dispatchCommentEvent = (
     userId: number;
     postAuthorId: number;
     content?: string;
+    commentsCount: number;
     timestamp: string;
   }
-): void => {
-  const recipients = [...new Set([data.postAuthorId, data.userId])];
+): Promise<void> => {
+  const audienceIds = await fetchPostAudienceUserIds(data.postAuthorId);
+  const recipientIds = [...new Set([...audienceIds, data.userId])];
 
-  publishSocketEventToMany(recipients, event, {
+  publishSocketEventToMany(recipientIds, event, {
     id: data.commentId,
     commentId: data.commentId,
     postId: data.postId,
     deletedBy: data.userId,
     content: data.content,
+    commentsCount: data.commentsCount,
     createdAt: data.timestamp,
     author: { id: data.userId },
   });
 };
 
-/** Notifies users viewing a post about like changes (when event exists). */
-export const dispatchPostLikedEvent = (
-  postAuthorId: number,
+/** Notifies the post audience about like changes. */
+export const dispatchPostLikedEvent = async (
   data: {
     postId: number;
     likesCount: number;
     liked: boolean;
     userId: number;
+    postAuthorId: number;
   }
-): void => {
-  publishSocketEvent(postAuthorId, 'post:liked', data);
+): Promise<void> => {
+  const audienceIds = await fetchPostAudienceUserIds(data.postAuthorId);
+  const recipientIds = [...new Set([...audienceIds, data.userId])];
+
+  publishSocketEventToMany(recipientIds, 'post:liked', data);
 };

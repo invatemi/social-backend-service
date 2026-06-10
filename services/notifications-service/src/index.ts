@@ -21,6 +21,8 @@ import { registerPostDeletedConsumer } from './consumers/post-deleted.consumer';
 
 import { registerPostUpdatedConsumer } from './consumers/post-updated.consumer';
 
+import { registerPostLikedConsumer } from './consumers/post-liked.consumer';
+
 import { registerUserEventConsumers } from './consumers/user-events.consumer';
 
 import { eventBus } from './middleware/event-bus';
@@ -193,6 +195,8 @@ const startConsumers = async (): Promise<void> => {
     registerPostUpdatedConsumer(),
 
     registerPostDeletedConsumer(),
+
+    registerPostLikedConsumer(),
 
     registerUserEventConsumers(prisma),
 

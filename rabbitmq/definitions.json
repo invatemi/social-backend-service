@@ -90,6 +90,15 @@
       }
     },
     {
+      "name": "notifications.post.liked",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
       "name": "notifications.user.friend.requested",
       "vhost": "/",
       "durable": true,
@@ -249,6 +258,14 @@
       "destination": "notifications.post.deleted",
       "destination_type": "queue",
       "routing_key": "post.deleted",
+      "arguments": {}
+    },
+    {
+      "source": "post.events",
+      "vhost": "/",
+      "destination": "notifications.post.liked",
+      "destination_type": "queue",
+      "routing_key": "post.liked",
       "arguments": {}
     },
     {

@@ -15,7 +15,9 @@ export type PostEventRoutingKey =
   | 'post.updated'
   | 'post.deleted';
 
-export type EventRoutingKey = CommentEventRoutingKey | PostEventRoutingKey;
+export type LikeEventRoutingKey = 'post.liked';
+
+export type EventRoutingKey = CommentEventRoutingKey | PostEventRoutingKey | LikeEventRoutingKey;
 
 export interface CommentEventPayload {
   commentId: number;
@@ -23,6 +25,7 @@ export interface CommentEventPayload {
   userId: number;
   postAuthorId: number;
   content?: string;
+  commentsCount: number;
   timestamp: string;
 }
 
@@ -33,10 +36,21 @@ export interface PostEventPayload {
   content: string;
   imageUrl: string | null;
   isPublished: boolean;
+  likesCount: number;
+  commentsCount: number;
   timestamp: string;
 }
 
-export type EventPayload = CommentEventPayload | PostEventPayload;
+export interface PostLikedEventPayload {
+  postId: number;
+  userId: number;
+  postAuthorId: number;
+  liked: boolean;
+  likesCount: number;
+  timestamp: string;
+}
+
+export type EventPayload = CommentEventPayload | PostEventPayload | PostLikedEventPayload;
 
 export class EventBus {
   private static instance: EventBus;
