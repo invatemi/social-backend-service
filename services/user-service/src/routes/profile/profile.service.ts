@@ -111,6 +111,13 @@ const joinPublicUrl = (baseUrl: string, key: string): string => {
   return `${baseUrl.replace(/\/+$/, '')}/${encodedKey}`;
 };
 
+const resolveUploadEndpoint = (publicBaseUrl: string): string => {
+  if (process.env.S3_UPLOAD_ENDPOINT) {
+    return process.env.S3_UPLOAD_ENDPOINT;
+  }
+  return new URL(publicBaseUrl).origin;
+};
+
 const userProfileSelect = {
   id: true,
   name: true,
@@ -335,12 +342,13 @@ export class ProfileService {
 
     const bucket = getRequiredEnv('S3_BUCKET');
     const publicBaseUrl = getRequiredEnv('S3_PUBLIC_BASE_URL');
+    const uploadEndpoint = resolveUploadEndpoint(publicBaseUrl);
     const expiresIn = Number(process.env.S3_UPLOAD_URL_TTL_SECONDS ?? 300);
     const key = `avatars/${id}/${randomUUID()}-${sanitizeFileName(input.fileName)}`;
 
     const client = new S3Client({
       region: process.env.S3_REGION ?? 'us-east-1',
-      endpoint: process.env.S3_ENDPOINT,
+      endpoint: uploadEndpoint,
       forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== 'false',
       credentials: {
         accessKeyId: getRequiredEnv('S3_ACCESS_KEY_ID'),

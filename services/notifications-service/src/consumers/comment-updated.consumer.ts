@@ -18,9 +18,7 @@ export const registerCommentUpdatedConsumer = async (): Promise<void> => {
     async (message, { ack, nack }) => {
       try {
         const payload = JSON.parse(message.content.toString('utf8')) as unknown;
-        const event = commentUpdatedEventSchema.parse(payload);
-
-        console.log('[Consumer:comment.updated] Received:', event);
+        commentUpdatedEventSchema.parse(payload);
         ack();
       } catch (error) {
         console.log('[Consumer:comment.updated] Failed to process message:', error);

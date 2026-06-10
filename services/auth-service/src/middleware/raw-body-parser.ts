@@ -19,7 +19,6 @@ export const rawBodyParser = (req: Request, res: Response, next: NextFunction) =
     if (rawData) {
       try {
         req.body = JSON.parse(rawData);
-        console.log('[Raw Body Parser] Parsed body');
       } catch (error) {
         console.error('[Raw Body Parser] Failed to parse JSON');
         req.body = {};
