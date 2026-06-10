@@ -25,6 +25,8 @@ import {
 } from '../routes/friends/friends.errors';
 import { PaginationValidationError } from '../utils/pagination';
 import { AvatarUploadConfigurationError } from '../routes/profile/profile.service';
+import { MailConfigurationError } from '../lib/mailer';
+import { PasswordError } from '../routes/password/password.errors';
 
 /** Maps user-domain errors to HTTP responses. */
 export const errorHandler = (
@@ -117,10 +119,16 @@ export const errorHandler = (
     errorCode = 'FORBIDDEN';
     errorMessage = err.message;
   } 
-  else if (err instanceof AvatarUploadConfigurationError) {
+  else if (err instanceof AvatarUploadConfigurationError || err instanceof MailConfigurationError) {
     statusCode = 500;
     errorCode = 'CONFIGURATION_ERROR';
     errorMessage = err.message;
+  }
+  else if (err instanceof PasswordError) {
+    statusCode = err.code === 'USER_NOT_FOUND' ? 404 : 400;
+    errorCode = err.code;
+    errorMessage = err.message;
+    errorField = err.field;
   }
   //Обработка базовых классов
   else if (err instanceof UserError) {
@@ -136,6 +144,7 @@ export const errorHandler = (
 
   res.status(statusCode).json({
     success: false,
+    message: errorMessage,
     error: {
       code: errorCode,
       message: errorMessage,

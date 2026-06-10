@@ -170,6 +170,72 @@
       }
     },
     {
+      "endpoint": "/api/users/me/password/request",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/users/me/password/request"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/me/password/verify",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/users/me/password/verify"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": true,
+          "cache": true,
+          "roles_key": "role",
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ],
+          "roles": ["admin", "moderator", "user", "guest"]
+        }
+      }
+    },
+    {
       "endpoint": "/api/auth/logout",
       "method": "POST",
       "public": true,

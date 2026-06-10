@@ -168,8 +168,16 @@ services:
       S3_UPLOAD_ENDPOINT: ${S3_UPLOAD_ENDPOINT:-http://localhost:9000}
       S3_UPLOAD_URL_TTL_SECONDS: ${S3_UPLOAD_URL_TTL_SECONDS:-300}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      AUTH_DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${AUTH_DB_HOST:-auth-db}:5432/${AUTH_DB_NAME}?schema=public"
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      PASSWORD_CODE_TTL_MINUTES: ${PASSWORD_CODE_TTL_MINUTES:-15}
     depends_on:
       user-db: { condition: service_healthy }
+      auth-db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis: { condition: service_healthy }
       minio: { condition: service_healthy }

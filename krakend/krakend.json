@@ -85,6 +85,26 @@
       }]
     },
     {
+      "endpoint": "/api/users/me/password/request",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type"],
+      "output_encoding": "no-op",
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/users/me/password/request"
+      }]
+    },
+    {
+      "endpoint": "/api/users/me/password/verify",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type"],
+      "output_encoding": "no-op",
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/users/me/password/verify"
+      }]
+    },
+    {
       "endpoint": "/api/auth/logout",
       "method": "POST",
       "public": true,

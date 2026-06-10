@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import followersRoutes from './routes/followers/endpoints';
 import friendsRoutes from './routes/friends/endpoints';
 import profileRoutes from './routes/profile/endpoints';
+import passwordRoutes from './routes/password/endpoints';
 import { errorHandler } from './middleware/error-handler';
 import { requestLogger } from './middleware/request-logger';
 import { jsonErrorHandler } from './middleware/json-error-handler';
@@ -21,6 +22,9 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+const authPool = new Pool({
+  connectionString: process.env.AUTH_DATABASE_URL,
+});
 
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
@@ -44,6 +48,13 @@ app.use('/api/friends', (req, res, next) => {
 
 app.use('/api/users', (req, res, next) => {
   (req as any).prisma = prisma;
+  (req as any).authPool = authPool;
+  next();
+}, passwordRoutes);
+
+app.use('/api/users', (req, res, next) => {
+  (req as any).prisma = prisma;
+  (req as any).authPool = authPool;
   next();
 }, profileRoutes);
 
@@ -89,6 +100,7 @@ const shutdown = async (signal: string) => {
     await eventBus.disconnect();
     await prisma.$disconnect();
     await pool.end();
+    await authPool.end();
     process.exit(0);
   });
 };
