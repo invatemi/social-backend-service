@@ -192,4 +192,6 @@ npm run dev
 
 ## Лицензия
 
-Открытый исходный код. Укажите лицензию перед публикацией (`LICENSE` файл).
+Проект распространяется под лицензией [Apache License 2.0](LICENSE).
+
+Copyright © 2026 [invatemi](https://github.com/invatemi)
