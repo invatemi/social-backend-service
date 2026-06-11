@@ -102,4 +102,8 @@ docker-compose.override.yml
 # dotenv environment variables file loader
 .env.keys
 
-# RabbitMQ credentials
+# Secrets and credentials (never commit)
+**/credentials.json
+**/*.pem
+**/*.key
+**/secrets/

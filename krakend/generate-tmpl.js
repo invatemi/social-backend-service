@@ -1,6 +1,8 @@
 const fs = require('fs');
+const path = require('path');
 
-const config = JSON.parse(fs.readFileSync('krakend.json', 'utf8'));
+const krakendDir = path.dirname(__filename);
+const config = JSON.parse(fs.readFileSync(path.join(krakendDir, 'krakend.json'), 'utf8'));
 
 delete config.extra_config['auth/validator'];
 
@@ -30,7 +32,23 @@ const jwtValidatorBlock = `{
           "roles": ["admin", "moderator", "user", "guest"]
         }`;
 
-tmpl = tmpl.replace(/"__JWT_VALIDATOR__"/g, jwtValidatorBlock);
+const corsBlock = `{
+      "allow_origins": [
+        {{- $origins := splitList "," (env "CORS_ORIGINS" | default "http://localhost:5173") -}}
+        {{- range $index, $origin := $origins -}}
+        {{- if $index }},{{ end -}}
+        {{ trim $origin " " | quote }}
+        {{- end -}}
+      ],
+      "allow_methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      "allow_headers": ["Origin", "Authorization", "Content-Type", "Accept"],
+      "expose_headers": ["Content-Length"],
+      "max_age": "12h",
+      "allow_credentials": false
+    }`;
 
-fs.writeFileSync('krakend.tmpl', tmpl);
+tmpl = tmpl.replace(/"__JWT_VALIDATOR__"/g, jwtValidatorBlock);
+tmpl = tmpl.replace(/"__CORS_ORIGINS__"/g, corsBlock);
+
+fs.writeFileSync(path.join(krakendDir, 'krakend.tmpl'), tmpl);
 console.log('Generated krakend/krakend.tmpl');

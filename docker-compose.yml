@@ -3,11 +3,12 @@ services:
     image: devopsfaith/krakend:2.7
     container_name: krakend
     ports:
-      - "${KRAKEND_EXTERNAL_PORT:-8080}:${KRAKEND_PORT:-8080}"
+      - "${BIND_ADDRESS:-127.0.0.1}:${KRAKEND_EXTERNAL_PORT:-8080}:${KRAKEND_PORT:-8080}"
     volumes:
       - ./krakend:/etc/krakend:ro
     environment:
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       KRAKEND_PORT: ${KRAKEND_PORT:-8080}
       FC_ENABLE: "1"
       FC_PARTIALS: "/etc/krakend/partials"
@@ -26,8 +27,8 @@ services:
     image: rabbitmq:3.12-management-alpine
     container_name: rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?Set RABBITMQ_DEFAULT_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS in .env}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST:-/}
       RABBITMQ_MANAGEMENT_PORT: ${RABBITMQ_MANAGEMENT_PORT:-15672}
       RABBITMQ_MANAGEMENT_IP: ${RABBITMQ_MANAGEMENT_IP:-127.0.0.1}
@@ -79,12 +80,12 @@ services:
     container_name: minio
     command: server /data --console-address ":9001"
     ports:
-      - "${MINIO_API_EXTERNAL_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_EXTERNAL_PORT:-9001}:9001"
+      - "${BIND_ADDRESS:-127.0.0.1}:${MINIO_API_EXTERNAL_PORT:-9000}:9000"
+      - "${BIND_ADDRESS:-127.0.0.1}:${MINIO_CONSOLE_EXTERNAL_PORT:-9001}:9001"
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
-      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_API_CORS_ALLOW_ORIGIN:-http://localhost:5173}
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${CORS_ORIGINS:-http://localhost:5173}
     volumes:
       - minio-data:/data
     healthcheck:
@@ -103,8 +104,8 @@ services:
       minio: { condition: service_healthy }
     environment:
       MINIO_INTERNAL_URL: http://minio:9000
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
       S3_BUCKET: ${S3_BUCKET:-social-avatars}
     volumes:
       - ./minio/init-bucket.sh:/scripts/init-bucket.sh:ro
@@ -113,6 +114,7 @@ services:
     restart: "no"
 
   elasticsearch:
+    profiles: [observability]
     build:
       context: ./elastic/elasticsearch
     container_name: elasticsearch
@@ -124,7 +126,7 @@ services:
       xpack.security.enabled: "false"
       xpack.security.enrollment.enabled: "false"
     ports:
-      - "${ELASTICSEARCH_EXTERNAL_PORT:-9200}:9200"
+      - "${BIND_ADDRESS:-127.0.0.1}:${ELASTICSEARCH_EXTERNAL_PORT:-9200}:9200"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     healthcheck:
@@ -137,11 +139,12 @@ services:
     restart: unless-stopped
 
   kibana:
+    profiles: [observability]
     build:
       context: ./elastic/kibana
     container_name: kibana
     ports:
-      - "${KIBANA_EXTERNAL_PORT:-5601}:5601"
+      - "${BIND_ADDRESS:-127.0.0.1}:${KIBANA_EXTERNAL_PORT:-5601}:5601"
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     depends_on:
@@ -156,6 +159,7 @@ services:
     restart: unless-stopped
 
   filebeat:
+    profiles: [observability]
     build:
       context: ./elastic/filebeat
     container_name: filebeat
@@ -260,8 +264,8 @@ services:
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-social-avatars}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-http://localhost:9000/social-avatars}
       S3_UPLOAD_ENDPOINT: ${S3_UPLOAD_ENDPOINT:-http://localhost:9000}
       S3_UPLOAD_URL_TTL_SECONDS: ${S3_UPLOAD_URL_TTL_SECONDS:-300}
@@ -344,17 +348,23 @@ services:
       args:
         SERVICE_PORT: ${MSG_PORT:-3004}
     container_name: social-message
+    env_file:
+      - ./services/message-service/.env
     environment:
       NODE_ENV: production
       SERVICE_NAME: social-message-service
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: ${MSG_PORT:-3004}
+      HOST: 0.0.0.0
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       DB_HOST: ${MSG_DB_HOST:-msg-db}
       DB_PORT: 5432
       DB_NAME: ${MSG_DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${MSG_DB_HOST:-msg-db}:5432/${MSG_DB_NAME}?schema=public"
+      DB_CONNECT_MAX_ATTEMPTS: 10
+      DB_CONNECT_RETRY_DELAY_MS: 2000
     depends_on:
       msg-db: { condition: service_healthy }
     healthcheck:
@@ -373,7 +383,7 @@ services:
         SERVICE_PORT: ${NOTIF_PORT:-3005}
     container_name: social-notifications
     ports:
-      - "${NOTIF_PORT:-3005}:${NOTIF_PORT:-3005}"
+      - "${BIND_ADDRESS:-127.0.0.1}:${NOTIF_EXTERNAL_PORT:-3005}:${NOTIF_PORT:-3005}"
     env_file:
       - ./services/notifications-service/.env
     environment:
@@ -385,7 +395,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       USER_SERVICE_URL: ${USER_SERVICE_URL:-http://social-user-service:3002}
       USER_SERVICE_TIMEOUT_MS: ${USER_SERVICE_TIMEOUT_MS:-3000}
-      SOCKET_CORS_ORIGIN: ${MINIO_API_CORS_ALLOW_ORIGIN:-http://localhost:5173}
+      SOCKET_CORS_ORIGIN: ${CORS_ORIGINS:-http://localhost:5173}
       DB_HOST: ${NOTIF_DB_HOST:-notif-db}
       DB_PORT: 5432
       DB_NAME: ${NOTIF_DB_NAME}
@@ -435,7 +445,7 @@ services:
     environment:
       POSTGRES_DB: ${AUTH_DB_NAME}
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes: [auth-data:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${AUTH_DB_NAME}"]
@@ -452,7 +462,7 @@ services:
     environment:
       POSTGRES_DB: ${USER_DB_NAME}
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes: [user-data:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${USER_DB_NAME}"]
@@ -469,7 +479,7 @@ services:
     environment:
       POSTGRES_DB: ${POST_DB_NAME}
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes: [post-data:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${POST_DB_NAME}"]
@@ -486,7 +496,7 @@ services:
     environment:
       POSTGRES_DB: ${MSG_DB_NAME}
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes: [msg-data:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${MSG_DB_NAME}"]
@@ -503,7 +513,7 @@ services:
     environment:
       POSTGRES_DB: ${NOTIF_DB_NAME}
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes: [notif-data:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${NOTIF_DB_NAME}"]
