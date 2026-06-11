@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client/index';
+import type { PrismaClient } from '../../generated/prisma';
 import { eventBus } from '../../middleware/event-bus';
 import {
   ValidationError,

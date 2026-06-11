@@ -10,7 +10,7 @@ import { eventBus, UserSummary } from '../../middleware/event-bus';
 import { cache } from '../../middleware/redis';
 import {
   invalidateFollowCaches,
-  USER_LIST_CACHE_TTL_SECONDS,
+  getUserListCacheTtlSeconds,
   userCacheKeys,
 } from '../../middleware/user-cache';
 import { PaginationParams, splitPage } from '../../utils/pagination';
@@ -114,7 +114,7 @@ export class FollowersService {
     }));
 
     const result = { user, followers, total, nextCursor: page.nextCursor };
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 
@@ -161,7 +161,7 @@ export class FollowersService {
     }));
 
     const result = { user, following, total, nextCursor: page.nextCursor };
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 
@@ -234,7 +234,7 @@ export class FollowersService {
       where: { followerId_followingId: { followerId: fid, followingId: gid } },
     });
     const result = !!existing;
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 
@@ -259,7 +259,7 @@ export class FollowersService {
     ]);
 
     const result = { followersCount, followingCount };
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 }

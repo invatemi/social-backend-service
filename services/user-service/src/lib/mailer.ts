@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
+import { getConfig } from '../config/env';
 
+/** Ошибка конфигурации SMTP. */
 export class MailConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -13,29 +15,30 @@ type SendMailInput = {
   text: string;
 };
 
-const getSmtpConfig = () => {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT ?? 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM ?? user;
+/** Отправка email через SMTP. */
+export class MailerService {
+  /** Читает и проверяет настройки SMTP. */
+  private getSmtpConfig() {
+    const { smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom } = getConfig();
 
-  if (!host || !user || !pass || !from) {
-    throw new MailConfigurationError('SMTP is not configured');
+    if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
+      throw new MailConfigurationError('SMTP is not configured');
+    }
+
+    return { host: smtpHost, port: smtpPort, user: smtpUser, pass: smtpPass, from: smtpFrom };
   }
 
-  return { host, port, user, pass, from };
-};
+  /** Отправляет письмо получателю. */
+  async send({ to, subject, text }: SendMailInput): Promise<void> {
+    const { host, port, user, pass, from } = this.getSmtpConfig();
+    const transport = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+    });
+    await transport.sendMail({ from, to, subject, text });
+  }
+}
 
-export const sendMail = async ({ to, subject, text }: SendMailInput): Promise<void> => {
-  const { host, port, user, pass, from } = getSmtpConfig();
-
-  const transport = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
-
-  await transport.sendMail({ from, to, subject, text });
-};
+export const mailer = new MailerService();

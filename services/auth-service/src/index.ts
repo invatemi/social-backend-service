@@ -1,75 +1,47 @@
 import express from 'express';
-import { PrismaClient } from './generated/prisma';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
-import authRoutes from './routes/endpoints';
-import { errorHandler } from './middleware/error-handler';
-import { requestLogger } from './middleware/request-logger';
-import { jsonErrorHandler } from './middleware/json-error-handler';
-import { eventBus } from './lib/event-bus';
+import {
+  getConfig,
+  loadEnv,
+  Database,
+  createHealthHandler,
+  registerShutdown,
+} from './config';
+import {
+  errorHandler,
+  requestLogger,
+  jsonErrorHandler,
+  eventBus,
+} from './middleware';
+import { authRoutes } from './routes';
 
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
-}
+loadEnv();
+const config = getConfig();
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
+const database = new Database(config.databaseUrl);
 const app = express();
-const PORT = parseInt(process.env.PORT || '3001', 10);
+const { port, host, serviceName } = config;
 
 app.use(express.json());
 app.use(jsonErrorHandler);
 app.use(requestLogger);
 
-app.use('/api/auth', (req, res, next) => {
-  (req as any).prisma = prisma;
+app.use('/api/auth', (req, _res, next) => {
+  (req as any).prisma = database.prisma;
   next();
 }, authRoutes);
 
+app.get('/health', createHealthHandler(serviceName, () => database.isHealthy()));
 app.use(errorHandler);
 
-app.get('/health', async (_req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.status(200).json({
-      status: 'ok',
-      service: 'social-auth-service',
-      database: 'connected',
-      timestamp: new Date().toISOString(),
-    });
-  } catch {
-    res.status(503).json({
-      status: 'degraded',
-      service: 'social-auth-service',
-      database: 'disconnected',
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
-
 void eventBus.connect().catch((error) => {
-  console.log('[EventBus] RabbitMQ startup connection failed:', error);
+  console.log('[EventBus] Не удалось подключиться к RabbitMQ:', error);
 });
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Service running on port ${PORT}`);
+const server = app.listen(port, host, () => {
+  console.log(`${serviceName} запущен на порту ${port}`);
 });
 
-/** Gracefully closes HTTP and database resources. */
-const shutdown = async (signal: string) => {
-  console.log(`${signal} received`);
-  server.close(async () => {
-    await eventBus.disconnect();
-    await prisma.$disconnect();
-    await pool.end();
-    process.exit(0);
-  });
-};
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+registerShutdown(server, [
+  () => eventBus.disconnect(),
+  () => database.disconnect(),
+]);

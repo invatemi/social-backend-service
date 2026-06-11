@@ -1,8 +1,7 @@
 import { z } from 'zod';
+import { getConfig } from '../config/env';
 import { eventBus } from '../middleware/event-bus';
 import { dispatchCommentEvent } from './post-socket.dispatcher';
-
-const QUEUE_NAME = 'notifications.comment.created';
 
 const commentCreatedEventSchema = z.object({
   commentId: z.number().int().positive(),
@@ -16,8 +15,10 @@ const commentCreatedEventSchema = z.object({
 
 /** Registers the comment.created notification consumer. */
 export const registerCommentCreatedConsumer = async (): Promise<void> => {
+  const { queues, postEventsExchange } = getConfig();
+
   await eventBus.subscribe(
-    QUEUE_NAME,
+    queues.commentCreated,
     async (message, { ack, nack }) => {
       try {
         const payload = JSON.parse(message.content.toString('utf8')) as unknown;
@@ -31,7 +32,7 @@ export const registerCommentCreatedConsumer = async (): Promise<void> => {
       }
     },
     {
-      exchangeName: 'post.events',
+      exchangeName: postEventsExchange,
       routingKey: 'comment.created',
     }
   );

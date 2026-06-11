@@ -22,7 +22,7 @@ const redact = (value: unknown): unknown => {
   );
 };
 
-/** Logs request metadata with sensitive fields redacted. */
+/** Логирует запросы, скрывая чувствительные поля. */
 export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`, {
     headers: redact(req.headers),

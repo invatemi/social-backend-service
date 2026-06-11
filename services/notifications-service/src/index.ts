@@ -1,308 +1,79 @@
 import http from 'http';
 import express from 'express';
+import {
+  getConfig,
+  loadEnv,
+  Database,
+  createHealthHandler,
+  registerShutdown,
+} from './config';
+import {
+  eventBus,
+  errorHandler,
+  jsonErrorHandler,
+  requestLogger,
+} from './middleware';
+import {
+  registerCommentCreatedConsumer,
+  registerCommentUpdatedConsumer,
+  registerCommentDeletedConsumer,
+  registerPostCreatedConsumer,
+  registerPostUpdatedConsumer,
+  registerPostDeletedConsumer,
+  registerPostLikedConsumer,
+  registerUserEventConsumers,
+} from './consumers';
+import { notificationRoutes, initSocketHub } from './routes';
 
-import type { ErrorRequestHandler } from 'express';
+loadEnv();
+const config = getConfig();
 
-import { PrismaClient } from './generated/prisma/client';
-
-import { PrismaPg } from '@prisma/adapter-pg';
-
-import { Pool } from 'pg';
-
-import { registerCommentCreatedConsumer } from './consumers/comment-created.consumer';
-
-import { registerCommentDeletedConsumer } from './consumers/comment-deleted.consumer';
-
-import { registerCommentUpdatedConsumer } from './consumers/comment-updated.consumer';
-
-import { registerPostCreatedConsumer } from './consumers/post-created.consumer';
-
-import { registerPostDeletedConsumer } from './consumers/post-deleted.consumer';
-
-import { registerPostUpdatedConsumer } from './consumers/post-updated.consumer';
-
-import { registerPostLikedConsumer } from './consumers/post-liked.consumer';
-
-import { registerUserEventConsumers } from './consumers/user-events.consumer';
-
-import { eventBus } from './middleware/event-bus';
-
-import notificationRoutes from './routes/notifications/endpoints';
-import { initSocketHub } from './routes/notifications/socket-hub';
-
-
-
+const database = new Database(config.databaseUrl);
 const app = express();
+const { port, host, serviceName } = config;
 
 app.use(express.json());
+app.use(jsonErrorHandler);
+app.use(requestLogger);
 
+app.get('/health', createHealthHandler(serviceName, () => database.isHealthy()));
 
-
-const pool = new Pool({
-
-  connectionString: process.env.DATABASE_URL,
-
-});
-
-
-
-const adapter = new PrismaPg(pool);
-
-const prisma = new PrismaClient({ adapter });
-
-
-
-/** Checks database connectivity with retry. */
-
-async function connectWithRetry(maxAttempts = 10, delayMs = 2000): Promise<boolean> {
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-
-    try {
-
-      const client = await pool.connect();
-
-      client.release();
-
-      console.log('✓ Connected to database');
-
-      return true;
-
-    } catch (err: unknown) {
-
-      const message = err instanceof Error ? err.message : String(err);
-
-      console.warn(`⚠ DB connection attempt ${attempt}/${maxAttempts} failed:`, message);
-
-      if (attempt === maxAttempts) {
-
-        console.error('✗ Failed to connect to database after all attempts');
-
-        return false;
-
-      }
-
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-
-    }
-
-  }
-
-
-
-  return false;
-
-}
-
-
-
-app.get('/health', async (_req, res) => {
-
-  try {
-
-    await prisma.$queryRaw`SELECT 1`;
-
-    res.status(200).json({
-
-      status: 'ok',
-
-      service: process.env.npm_package_name || 'unknown',
-
-      database: 'connected',
-
-      port: process.env.PORT,
-
-      timestamp: new Date().toISOString(),
-
-    });
-
-  } catch {
-
-    res.status(503).json({
-
-      status: 'degraded',
-
-      service: process.env.npm_package_name || 'unknown',
-
-      database: 'disconnected',
-
-      port: process.env.PORT,
-
-      timestamp: new Date().toISOString(),
-
-    });
-
-  }
-
-});
-
-
-
-app.use('/api/notifications', (req, res, next) => {
-
-  (req as any).prisma = prisma;
-
+app.use('/api/notifications', (req, _res, next) => {
+  (req as any).prisma = database.prisma;
   next();
-
 }, notificationRoutes);
-
-
-
-const PORT = parseInt(process.env.PORT || '3001', 10);
-
-
-
-const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
-
-  const isValidationError = error?.name === 'ZodError';
-
-
-
-  res.status(isValidationError ? 400 : 500).json({
-
-    success: false,
-
-    error: isValidationError ? 'Validation error' : 'Internal server error',
-
-  });
-
-};
-
-
 
 app.use(errorHandler);
 
-
-
-/** Starts RabbitMQ consumers after the HTTP server is available. */
-
+/** Запускает все RabbitMQ consumers сервиса. */
 const startConsumers = async (): Promise<void> => {
-
-  await connectWithRetry();
-
+  await database.connectWithRetry();
   await eventBus.connect();
-
   await Promise.all([
-
     registerCommentCreatedConsumer(),
-
     registerCommentUpdatedConsumer(),
-
     registerCommentDeletedConsumer(),
-
     registerPostCreatedConsumer(),
-
     registerPostUpdatedConsumer(),
-
     registerPostDeletedConsumer(),
-
     registerPostLikedConsumer(),
-
-    registerUserEventConsumers(prisma),
-
+    registerUserEventConsumers(database.prisma),
   ]);
-
-  console.log('Notification consumers are ready');
-
+  console.log('Consumers уведомлений готовы');
 };
 
+const httpServer = http.createServer(app);
+initSocketHub(httpServer);
 
-
-/** Starts the HTTP server and background consumers. */
-
-const start = async (): Promise<void> => {
-
-  const httpServer = http.createServer(app);
-  initSocketHub(httpServer);
-
-  const server = httpServer.listen(PORT, '0.0.0.0', () => {
-
-    console.log(`Running on port ${PORT}`);
-
-  });
-
-
-
-  void startConsumers().catch((error) => {
-
-    console.log('Failed to initialize notification consumers:', error);
-
-  });
-
-
-
-  let isShuttingDown = false;
-
-
-
-  /** Gracefully closes HTTP, broker, and database resources. */
-
-  const shutdown = async (signal: string): Promise<void> => {
-
-    if (isShuttingDown) {
-
-      return;
-
-    }
-
-
-
-    isShuttingDown = true;
-
-    console.log(`${signal} received`);
-
-
-
-    server.close(async () => {
-
-      try {
-
-        await eventBus.disconnect();
-
-        await prisma.$disconnect();
-
-        await pool.end();
-
-        process.exit(0);
-
-      } catch (error) {
-
-        console.log('Failed to shutdown cleanly:', error);
-
-        process.exit(1);
-
-      }
-
-    });
-
-  };
-
-
-
-  process.on('SIGTERM', () => {
-
-    void shutdown('SIGTERM');
-
-  });
-
-
-
-  process.on('SIGINT', () => {
-
-    void shutdown('SIGINT');
-
-  });
-
-};
-
-
-
-void start().catch((error) => {
-
-  console.log('Failed to start notifications-service:', error);
-
-  process.exit(1);
-
+const server = httpServer.listen(port, host, () => {
+  console.log(`${serviceName} запущен на порту ${port}`);
 });
 
+void startConsumers().catch((error) => {
+  console.log('Не удалось запустить consumers:', error);
+});
 
+registerShutdown(server, [
+  () => eventBus.disconnect(),
+  () => database.disconnect(),
+]);

@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client/index';
+import type { PrismaClient } from '../../generated/prisma';
 import { eventBus } from '../../middleware/event-bus';
 import {
   PostValidationError,
@@ -13,6 +13,7 @@ import {
   fetchFeedSourceUserIds,
   type PostAuthor,
 } from '../../clients/user-client';
+import { getConfig } from '../../config/env';
 
 // ==================== TYPES ====================
 export interface CreatePostData {
@@ -87,9 +88,6 @@ type PostUpdateFields = {
   content?: string;
   image_url?: string;
 };
-
-const POST_CACHE_TTL_SECONDS = Number(process.env.POST_CACHE_TTL_SECONDS ?? 300);
-const POST_LIST_CACHE_TTL_SECONDS = Number(process.env.POST_LIST_CACHE_TTL_SECONDS ?? 60);
 
 const postCacheKeys = {
   byId: (postId: number) => `post:${postId}`,
@@ -294,7 +292,7 @@ export class PostService {
 
     const createdPost = this.formatPost(post);
     await Promise.all([
-      cache.set(postCacheKeys.byId(createdPost.id), createdPost, POST_CACHE_TTL_SECONDS),
+      cache.set(postCacheKeys.byId(createdPost.id), createdPost, getConfig().postCacheTtlSeconds),
       invalidatePostLists(createdPost.userId),
     ]);
     await publishPostEvent('post.created', createdPost);
@@ -304,8 +302,9 @@ export class PostService {
 
   /** Returns paginated posts for the public feed. */
   async getAllPosts(options: PaginationOptions = {}): Promise<PostsListResponse> {
-    const page = options.page ?? 1;
-    const pageSize = options.pageSize ?? 10;
+    const { defaultPage, defaultPageSize } = getConfig();
+    const page = options.page ?? defaultPage;
+    const pageSize = options.pageSize ?? defaultPageSize;
     const onlyPublished = options.onlyPublished ?? true;
 
     if (page < 1) {
@@ -344,7 +343,7 @@ export class PostService {
       totalPages: Math.ceil(total / pageSize),
     };
 
-    await cache.set(cacheKey, rawResult, POST_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, rawResult, getConfig().postListCacheTtlSeconds);
     return {
       ...rawResult,
       posts: await enrichPostsWithAuthors(rawResult.posts),
@@ -357,8 +356,9 @@ export class PostService {
     options: PaginationOptions = {}
   ): Promise<PostsListResponse> {
     const validUserId = validateId(userId, 'userId');
-    const page = options.page ?? 1;
-    const pageSize = options.pageSize ?? 10;
+    const { defaultPage, defaultPageSize } = getConfig();
+    const page = options.page ?? defaultPage;
+    const pageSize = options.pageSize ?? defaultPageSize;
     const onlyPublished = options.onlyPublished ?? true;
 
     if (page < 1) {
@@ -389,7 +389,7 @@ export class PostService {
         totalPages: 0,
       };
 
-      await cache.set(cacheKey, emptyResult, POST_LIST_CACHE_TTL_SECONDS);
+      await cache.set(cacheKey, emptyResult, getConfig().postListCacheTtlSeconds);
       return {
         ...emptyResult,
         posts: [],
@@ -419,7 +419,7 @@ export class PostService {
       totalPages: Math.ceil(total / pageSize),
     };
 
-    await cache.set(cacheKey, rawResult, POST_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, rawResult, getConfig().postListCacheTtlSeconds);
     return {
       ...rawResult,
       posts: await enrichPostsWithAuthors(rawResult.posts),
@@ -432,8 +432,9 @@ export class PostService {
     options: PaginationOptions = {}
   ): Promise<PostsListResponse> {
     const validUserId = validateId(userId, 'userId');
-    const page = options.page ?? 1;
-    const pageSize = options.pageSize ?? 10;
+    const { defaultPage, defaultPageSize } = getConfig();
+    const page = options.page ?? defaultPage;
+    const pageSize = options.pageSize ?? defaultPageSize;
     const onlyPublished = options.onlyPublished ?? true;
 
     if (page < 1) {
@@ -475,7 +476,7 @@ export class PostService {
       totalPages: Math.ceil(total / pageSize),
     };
 
-    await cache.set(cacheKey, rawResult, POST_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, rawResult, getConfig().postListCacheTtlSeconds);
     return {
       ...rawResult,
       posts: await enrichPostsWithAuthors(rawResult.posts),
@@ -500,7 +501,7 @@ export class PostService {
     }
 
     const result = this.formatPost(post);
-    await cache.set(cacheKey, result, POST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getConfig().postCacheTtlSeconds);
     return enrichPostWithAuthor(result);
   }
 
@@ -548,7 +549,7 @@ export class PostService {
 
     const formattedPost = this.formatPost(updatedPost);
     await Promise.all([
-      cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, POST_CACHE_TTL_SECONDS),
+      cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, getConfig().postCacheTtlSeconds),
       invalidatePostLists(formattedPost.userId),
     ]);
     await publishPostEvent('post.updated', formattedPost);
@@ -617,7 +618,7 @@ export class PostService {
 
     const formattedPost = this.formatPost(updatedPost);
     await Promise.all([
-      cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, POST_CACHE_TTL_SECONDS),
+      cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, getConfig().postCacheTtlSeconds),
       invalidatePostLists(formattedPost.userId),
     ]);
     await publishPostEvent('post.updated', formattedPost);
@@ -656,7 +657,7 @@ export class PostService {
 
     const formattedPost = this.formatPost(updatedPost);
     await Promise.all([
-      cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, POST_CACHE_TTL_SECONDS),
+      cache.set(postCacheKeys.byId(formattedPost.id), formattedPost, getConfig().postCacheTtlSeconds),
       invalidatePostLists(formattedPost.userId),
     ]);
     await publishPostEvent('post.updated', formattedPost);
@@ -670,8 +671,9 @@ export class PostService {
     options: PaginationOptions = {}
   ): Promise<PostsListResponse> {
     const validUserId = validateId(userId, 'userId');
-    const page = options.page ?? 1;
-    const pageSize = options.pageSize ?? 10;
+    const { defaultPage, defaultPageSize } = getConfig();
+    const page = options.page ?? defaultPage;
+    const pageSize = options.pageSize ?? defaultPageSize;
 
     if (page < 1) {
       throw new PostValidationError('Page must be greater than 0', 'page');
@@ -709,7 +711,7 @@ export class PostService {
       totalPages: Math.ceil(total / pageSize),
     };
 
-    await cache.set(cacheKey, rawResult, POST_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, rawResult, getConfig().postListCacheTtlSeconds);
     return {
       ...rawResult,
       posts: await enrichPostsWithAuthors(rawResult.posts),

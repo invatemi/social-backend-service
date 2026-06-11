@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from 'jsonwebtoken';
+import { getConfig } from '../config/env';
 
 export interface JwtPayload {
   userId: number;
@@ -27,7 +28,7 @@ export const authenticateToken = (
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+    const decoded = jwt.verify(token, getConfig().jwtSecret) as JwtPayload;
     req.user = decoded;
     next();
   } catch (error) {

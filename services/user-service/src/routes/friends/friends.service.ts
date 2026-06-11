@@ -13,7 +13,7 @@ import { cache } from '../../middleware/redis';
 import {
   invalidateFollowCaches,
   invalidateFriendCaches,
-  USER_LIST_CACHE_TTL_SECONDS,
+  getUserListCacheTtlSeconds,
   userCacheKeys,
 } from '../../middleware/user-cache';
 import { PaginationParams, splitPage } from '../../utils/pagination';
@@ -408,7 +408,7 @@ export class FriendsService {
       nextCursor: page.nextCursor,
     };
 
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 
@@ -450,7 +450,7 @@ export class FriendsService {
       nextCursor: page.nextCursor,
     };
 
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 
@@ -509,7 +509,7 @@ export class FriendsService {
     });
 
     const result = { user, friends, total, nextCursor: page.nextCursor };
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 
@@ -594,7 +594,7 @@ export class FriendsService {
     });
 
     const result = !!friendship;
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 
@@ -668,7 +668,7 @@ export class FriendsService {
       outgoingRequestId: outgoingRequest?.id ?? null,
     };
 
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 
@@ -694,7 +694,7 @@ export class FriendsService {
     });
 
     const result = { friendsCount };
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 }

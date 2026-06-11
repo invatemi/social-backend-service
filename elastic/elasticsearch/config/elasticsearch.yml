@@ -1,0 +1,14 @@
+cluster.name: social-microservices
+node.name: social-es-node-1
+
+network.host: 0.0.0.0
+http.port: 9200
+
+discovery.type: single-node
+
+# Dev/staging: disable TLS auth for simpler local setup.
+# Enable security + TLS in production.
+xpack.security.enabled: false
+xpack.security.enrollment.enabled: false
+
+action.auto_create_index: "logs-microservices-*,filebeat-*,.monitoring-*"

@@ -1,109 +1,74 @@
 import express from 'express';
-import { PrismaClient } from './generated/prisma';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
-import followersRoutes from './routes/followers/endpoints';
-import friendsRoutes from './routes/friends/endpoints';
-import profileRoutes from './routes/profile/endpoints';
-import passwordRoutes from './routes/password/endpoints';
-import { errorHandler } from './middleware/error-handler';
-import { requestLogger } from './middleware/request-logger';
-import { jsonErrorHandler } from './middleware/json-error-handler';
-import { eventBus } from './middleware/event-bus';
-import { cache } from './middleware/redis';
-import { registerUserRegisteredConsumer } from './consumers/user-registered.consumer';
+import {
+  getConfig,
+  loadEnv,
+  Database,
+  AuthDatabase,
+  createHealthHandler,
+  registerShutdown,
+} from './config';
+import {
+  errorHandler,
+  requestLogger,
+  jsonErrorHandler,
+  eventBus,
+  cache,
+} from './middleware';
+import {
+  followersRoutes,
+  friendsRoutes,
+  profileRoutes,
+  passwordRoutes,
+} from './routes';
+import { registerUserRegisteredConsumer } from './consumers';
 
+loadEnv();
+const config = getConfig();
 
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
-}
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const authPool = new Pool({
-  connectionString: process.env.AUTH_DATABASE_URL,
-});
-
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
+const database = new Database(config.databaseUrl);
+const authDatabase = new AuthDatabase(config.authDatabaseUrl);
 const app = express();
-const PORT = parseInt(process.env.PORT || '3002', 10);
+const { port, host, serviceName } = config;
 
 app.use(express.json());
 app.use(jsonErrorHandler);
 app.use(requestLogger);
 
-app.use('/api/followers', (req, res, next) => {
-  (req as any).prisma = prisma;
+const attachUserContext = (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+  (req as any).prisma = database.prisma;
   next();
-}, followersRoutes);
+};
 
-app.use('/api/friends', (req, res, next) => {
-  (req as any).prisma = prisma;
+const attachProfileContext = (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+  (req as any).prisma = database.prisma;
+  (req as any).authPool = authDatabase.pool;
   next();
-}, friendsRoutes);
+};
 
-app.use('/api/users', (req, res, next) => {
-  (req as any).prisma = prisma;
-  (req as any).authPool = authPool;
-  next();
-}, passwordRoutes);
+app.use('/api/followers', attachUserContext, followersRoutes);
+app.use('/api/friends', attachUserContext, friendsRoutes);
+app.use('/api/users', attachProfileContext, passwordRoutes);
+app.use('/api/users', attachProfileContext, profileRoutes);
 
-app.use('/api/users', (req, res, next) => {
-  (req as any).prisma = prisma;
-  (req as any).authPool = authPool;
-  next();
-}, profileRoutes);
-
+app.get('/health', createHealthHandler(serviceName, () => database.isHealthy()));
 app.use(errorHandler);
-
-app.get('/health', async (_req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.status(200).json({
-      status: 'ok',
-      service: 'social-user-service',
-      database: 'connected',
-      timestamp: new Date().toISOString(),
-    });
-  } catch {
-    res.status(503).json({
-      status: 'degraded',
-      service: 'social-user-service',
-      database: 'disconnected',
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
 
 void (async () => {
   try {
     await eventBus.connect();
-    await registerUserRegisteredConsumer(prisma);
+    await registerUserRegisteredConsumer(database.prisma);
   } catch (error) {
-    console.log('[EventBus] RabbitMQ startup failed:', error);
+    console.log('[EventBus] Не удалось запустить consumer:', error);
   }
 })();
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Service running on port ${PORT}`);
+const server = app.listen(port, host, () => {
+  console.log(`${serviceName} запущен на порту ${port}`);
 });
 
-/** Gracefully closes HTTP, cache, broker, and database resources. */
-const shutdown = async (signal: string) => {
-  console.log(`${signal} received`);
-  server.close(async () => {
-    await cache.disconnect();
-    await eventBus.disconnect();
-    await prisma.$disconnect();
-    await pool.end();
-    await authPool.end();
-    process.exit(0);
-  });
-};
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+registerShutdown(server, [
+  () => cache.disconnect(),
+  () => eventBus.disconnect(),
+  () => database.disconnect(),
+  () => authDatabase.disconnect(),
+]);

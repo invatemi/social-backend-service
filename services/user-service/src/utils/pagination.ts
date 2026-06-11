@@ -1,5 +1,7 @@
-export const DEFAULT_PAGE_LIMIT = 20;
-export const MAX_PAGE_LIMIT = 50;
+import { getConfig } from '../config/env';
+
+export const getDefaultPageLimit = (): number => getConfig().paginationDefaultLimit;
+export const getMaxPageLimit = (): number => getConfig().paginationMaxLimit;
 
 export interface PaginationParams {
   limit: number;
@@ -42,11 +44,11 @@ export const parsePaginationQuery = (query: {
   limit?: unknown;
   cursor?: unknown;
 }): PaginationParams => {
-  const requestedLimit = parsePositiveInteger(query.limit, 'limit') ?? DEFAULT_PAGE_LIMIT;
+  const requestedLimit = parsePositiveInteger(query.limit, 'limit') ?? getDefaultPageLimit();
   const cursor = parsePositiveInteger(query.cursor, 'cursor');
 
   return {
-    limit: Math.min(requestedLimit, MAX_PAGE_LIMIT),
+    limit: Math.min(requestedLimit, getMaxPageLimit()),
     ...(cursor ? { cursor } : {}),
   };
 };

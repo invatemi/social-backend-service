@@ -1,6 +1,7 @@
 import http from 'http';
 import jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
+import { getConfig } from '../../config/env';
 
 type JwtPayload = {
   userId: number;
@@ -44,13 +45,8 @@ const resolveToken = (socket: Socket): string | null => {
 };
 
 const verifySocketToken = (token: string): JwtPayload | null => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    return null;
-  }
-
   try {
-    const decoded = jwt.verify(token, secret) as JwtPayload;
+    const decoded = jwt.verify(token, getConfig().jwtSecret) as JwtPayload;
     if (!decoded?.userId || !Number.isInteger(decoded.userId) || decoded.userId <= 0) {
       return null;
     }
@@ -107,7 +103,7 @@ export const publishNotificationToUser = (
 
 /** Attaches socket.io to the HTTP server and registers connection handlers. */
 export const initSocketHub = (server: http.Server): Server => {
-  const corsOrigin = process.env.SOCKET_CORS_ORIGIN ?? '*';
+  const corsOrigin = getConfig().socketCorsOrigin;
 
   io = new Server(server, {
     cors: {

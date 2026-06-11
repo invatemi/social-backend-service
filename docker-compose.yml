@@ -112,14 +112,78 @@ services:
     networks: [social-net]
     restart: "no"
 
+  elasticsearch:
+    build:
+      context: ./elastic/elasticsearch
+    container_name: elasticsearch
+    environment:
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms512m -Xmx512m}
+      cluster.name: social-microservices
+      node.name: social-es-node-1
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+    ports:
+      - "${ELASTICSEARCH_EXTERNAL_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=10 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks: [social-net]
+    restart: unless-stopped
+
+  kibana:
+    build:
+      context: ./elastic/kibana
+    container_name: kibana
+    ports:
+      - "${KIBANA_EXTERNAL_PORT:-5601}:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:5601/api/status || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks: [social-net]
+    restart: unless-stopped
+
+  filebeat:
+    build:
+      context: ./elastic/filebeat
+    container_name: filebeat
+    user: root
+    environment:
+      ELASTICSEARCH_HOST: http://elasticsearch:9200
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+    networks: [social-net]
+    restart: unless-stopped
+
   social-auth-service:
     build:
       context: ./services/auth-service
       args:
         SERVICE_PORT: ${AUTH_PORT:-3001}
     container_name: social-auth
+    env_file:
+      - ./services/auth-service/.env
     environment:
+      NODE_ENV: production
+      SERVICE_NAME: social-auth-service
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: ${AUTH_PORT:-3001}
+      HOST: 0.0.0.0
       DB_HOST: ${AUTH_DB_HOST:-auth-db}
       DB_PORT: 5432
       DB_NAME: ${AUTH_DB_NAME}
@@ -128,6 +192,18 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${AUTH_DB_HOST:-auth-db}:5432/${AUTH_DB_NAME}?schema=public"
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
+      ACCESS_TOKEN_KEY_ID: auth-service-key
+      ACCESS_TOKEN_EXPIRY: 15m
+      REFRESH_TOKEN_EXPIRY_DAYS: 7
+      BCRYPT_SALT_ROUNDS: 10
+      DEFAULT_USER_ROLE_ID: 3
+      REFRESH_TOKEN_BYTES: 48
+      MIN_PASSWORD_LENGTH: 8
+      MIN_USERNAME_LENGTH: 2
+      USER_EVENTS_EXCHANGE: user.events
+      RABBITMQ_CONNECT_MAX_ATTEMPTS: 30
+      RABBITMQ_CONNECT_RETRY_DELAY_MS: 2000
+      RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS: 10000
     depends_on:
       auth-db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -146,8 +222,14 @@ services:
       args:
         SERVICE_PORT: ${USER_PORT:-3002}
     container_name: social-user
+    env_file:
+      - ./services/user-service/.env
     environment:
+      NODE_ENV: production
+      SERVICE_NAME: social-user-service
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: ${USER_PORT:-3002}
+      HOST: 0.0.0.0
       DB_HOST: ${USER_DB_HOST:-user-db}
       DB_PORT: 5432
       DB_NAME: ${USER_DB_NAME}
@@ -157,8 +239,24 @@ services:
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-5000}
+      REDIS_RECONNECT_BASE_MS: 100
+      REDIS_RECONNECT_MAX_MS: 2000
       USER_CACHE_TTL_SECONDS: ${USER_CACHE_TTL_SECONDS:-300}
       USER_LIST_CACHE_TTL_SECONDS: ${USER_LIST_CACHE_TTL_SECONDS:-60}
+      USER_EVENTS_EXCHANGE: user.events
+      USER_REGISTERED_QUEUE: user-service.user.registered
+      USER_REGISTERED_ROUTING_KEY: user.registered
+      RABBITMQ_CONNECT_MAX_ATTEMPTS: 30
+      RABBITMQ_CONNECT_RETRY_DELAY_MS: 2000
+      RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS: 10000
+      RABBITMQ_PREFETCH_COUNT: 10
+      PAGINATION_DEFAULT_LIMIT: 20
+      PAGINATION_MAX_LIMIT: 50
+      MAX_AUTHORS_BATCH_SIZE: 50
+      MIN_SEARCH_QUERY_LENGTH: 2
+      BCRYPT_SALT_ROUNDS: 10
+      PASSWORD_CHANGE_PURPOSE: password_change
+      MIN_PASSWORD_LENGTH: 8
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-social-avatars}
@@ -197,8 +295,14 @@ services:
       args:
         SERVICE_PORT: ${POST_PORT:-3003}
     container_name: social-post
+    env_file:
+      - ./services/post-service/.env
     environment:
+      NODE_ENV: production
+      SERVICE_NAME: social-post-service
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: ${POST_PORT:-3003}
+      HOST: 0.0.0.0
       DB_HOST: ${POST_DB_HOST:-post-db}
       DB_PORT: 5432
       DB_NAME: ${POST_DB_NAME}
@@ -208,10 +312,18 @@ services:
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-5000}
+      REDIS_RECONNECT_BASE_MS: 100
+      REDIS_RECONNECT_MAX_MS: 2000
       POST_CACHE_TTL_SECONDS: ${POST_CACHE_TTL_SECONDS:-300}
       POST_LIST_CACHE_TTL_SECONDS: ${POST_LIST_CACHE_TTL_SECONDS:-60}
       USER_SERVICE_URL: ${USER_SERVICE_URL:-http://social-user-service:3002}
       USER_SERVICE_TIMEOUT_MS: ${USER_SERVICE_TIMEOUT_MS:-3000}
+      POST_EVENTS_EXCHANGE: post.events
+      DEFAULT_PAGE: 1
+      DEFAULT_PAGE_SIZE: 10
+      RABBITMQ_CONNECT_MAX_ATTEMPTS: 30
+      RABBITMQ_CONNECT_RETRY_DELAY_MS: 2000
+      RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS: 10000
     depends_on:
       post-db: { condition: service_healthy }
       social-user-service: { condition: service_healthy }
@@ -233,6 +345,9 @@ services:
         SERVICE_PORT: ${MSG_PORT:-3004}
     container_name: social-message
     environment:
+      NODE_ENV: production
+      SERVICE_NAME: social-message-service
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: ${MSG_PORT:-3004}
       DB_HOST: ${MSG_DB_HOST:-msg-db}
       DB_PORT: 5432
@@ -259,11 +374,18 @@ services:
     container_name: social-notifications
     ports:
       - "${NOTIF_PORT:-3005}:${NOTIF_PORT:-3005}"
+    env_file:
+      - ./services/notifications-service/.env
     environment:
+      NODE_ENV: production
+      SERVICE_NAME: social-notifications-service
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: ${NOTIF_PORT:-3005}
+      HOST: 0.0.0.0
       JWT_SECRET: ${JWT_SECRET}
       USER_SERVICE_URL: ${USER_SERVICE_URL:-http://social-user-service:3002}
       USER_SERVICE_TIMEOUT_MS: ${USER_SERVICE_TIMEOUT_MS:-3000}
+      SOCKET_CORS_ORIGIN: ${MINIO_API_CORS_ALLOW_ORIGIN:-http://localhost:5173}
       DB_HOST: ${NOTIF_DB_HOST:-notif-db}
       DB_PORT: 5432
       DB_NAME: ${NOTIF_DB_NAME}
@@ -271,6 +393,29 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${NOTIF_DB_HOST:-notif-db}:5432/${NOTIF_DB_NAME}?schema=public"
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
+      USER_EVENTS_EXCHANGE: user.events
+      POST_EVENTS_EXCHANGE: post.events
+      RABBITMQ_CONNECT_MAX_ATTEMPTS: 30
+      RABBITMQ_CONNECT_RETRY_DELAY_MS: 2000
+      RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS: 10000
+      RABBITMQ_PREFETCH_COUNT: 10
+      DB_CONNECT_MAX_ATTEMPTS: 10
+      DB_CONNECT_RETRY_DELAY_MS: 2000
+      QUEUE_COMMENT_CREATED: notifications.comment.created
+      QUEUE_COMMENT_UPDATED: notifications.comment.updated
+      QUEUE_COMMENT_DELETED: notifications.comment.deleted
+      QUEUE_POST_CREATED: notifications.post.created
+      QUEUE_POST_UPDATED: notifications.post.updated
+      QUEUE_POST_DELETED: notifications.post.deleted
+      QUEUE_POST_LIKED: notifications.post.liked
+      QUEUE_FRIEND_REQUESTED: notifications.user.friend.requested
+      QUEUE_FRIEND_ACCEPTED: notifications.user.friend.accepted
+      QUEUE_FRIEND_REMOVED: notifications.user.friend.removed
+      QUEUE_FRIEND_CANCELLED: notifications.user.friend.cancelled
+      QUEUE_FRIEND_DECLINED: notifications.user.friend.declined
+      QUEUE_FOLLOW_CREATED: notifications.user.follow.created
+      QUEUE_FOLLOW_DELETED: notifications.user.follow.deleted
+      QUEUE_USER_UPDATED: notifications.user.updated
     depends_on:
       notif-db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -378,6 +523,7 @@ volumes:
   rabbitmq-data:
   redis-data:
   minio-data:
+  elasticsearch-data:
 
 networks:
   social-net:

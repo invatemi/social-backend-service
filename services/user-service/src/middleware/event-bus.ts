@@ -1,9 +1,11 @@
 import * as amqp from 'amqplib';
 import type { Channel, ConsumeMessage } from 'amqplib';
+import { getConfig } from '../config/env';
 
 type AmqpConnection = Awaited<ReturnType<typeof amqp.connect>>;
 
-const USER_EVENTS_EXCHANGE = 'user.events';
+const sleep = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, delayMs));
 
 export type UserEventRoutingKey =
   | 'friend.requested'
@@ -101,15 +103,25 @@ export interface SubscribeOptions {
   routingKey: string;
 }
 
+interface StoredSubscription {
+  queueName: string;
+  handler: EventHandler;
+  options?: SubscribeOptions;
+}
+
+/** Шина событий для публикации и подписки на события user-домена. */
 export class EventBus {
   private static instance: EventBus;
 
   private connection: AmqpConnection | null = null;
   private channel: Channel | null = null;
+  private subscriptions: StoredSubscription[] = [];
+  private reconnecting = false;
+  private shuttingDown = false;
 
   private constructor() {}
 
-  /** Returns the singleton event bus instance. */
+  /** Возвращает единственный экземпляр шины событий. */
   static getInstance(): EventBus {
     if (!EventBus.instance) {
       EventBus.instance = new EventBus();
@@ -118,52 +130,142 @@ export class EventBus {
     return EventBus.instance;
   }
 
-  /** Opens a RabbitMQ connection and asserts the user exchange. */
+  private getRetryConfig() {
+    const config = getConfig();
+    return {
+      maxAttempts: config.rabbitmqConnectMaxAttempts,
+      retryDelayMs: config.rabbitmqConnectRetryDelayMs,
+      maxRetryDelayMs: config.rabbitmqConnectMaxRetryDelayMs,
+    };
+  }
+
+  private handleConnectionClosed(): void {
+    console.log('[EventBus] Connection closed');
+    this.connection = null;
+    this.channel = null;
+
+    if (!this.shuttingDown) {
+      this.scheduleReconnect();
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.shuttingDown || this.reconnecting) {
+      return;
+    }
+
+    this.reconnecting = true;
+
+    void this.reconnectLoop().finally(() => {
+      this.reconnecting = false;
+    });
+  }
+
+  private async reconnectLoop(): Promise<void> {
+    const { maxAttempts, retryDelayMs, maxRetryDelayMs } = this.getRetryConfig();
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      if (this.shuttingDown) {
+        return;
+      }
+
+      try {
+        await this.establishConnection();
+        await this.resubscribeAll();
+
+        console.log(
+          `[EventBus] Reconnected to RabbitMQ and restored ${this.subscriptions.length} subscription(s)`
+        );
+        return;
+      } catch (error) {
+        if (attempt === maxAttempts) {
+          console.log('[EventBus] Failed to reconnect to RabbitMQ:', error);
+          return;
+        }
+
+        const nextDelayMs = Math.min(retryDelayMs * attempt, maxRetryDelayMs);
+
+        console.warn(
+          `[EventBus] Reconnect attempt ${attempt}/${maxAttempts} failed. Retrying in ${nextDelayMs}ms:`,
+          error
+        );
+
+        await sleep(nextDelayMs);
+      }
+    }
+  }
+
+  private async establishConnection(): Promise<void> {
+    const { rabbitmqUrl, userEventsExchange, rabbitmqPrefetchCount } = getConfig();
+
+    this.connection = await amqp.connect(rabbitmqUrl);
+
+    this.connection.on('error', (error) => {
+      console.log('[EventBus] Connection error:', error);
+    });
+
+    this.connection.on('close', () => {
+      this.handleConnectionClosed();
+    });
+
+    this.channel = await this.connection.createChannel();
+    await this.channel.prefetch(rabbitmqPrefetchCount);
+
+    this.channel.on('error', (error) => {
+      console.log('[EventBus] Channel error:', error);
+    });
+
+    await this.channel.assertExchange(userEventsExchange, 'topic', {
+      durable: true,
+    });
+
+    console.log('[EventBus] Connected to RabbitMQ');
+  }
+
+  private async resubscribeAll(): Promise<void> {
+    for (const subscription of this.subscriptions) {
+      await this.attachConsumer(
+        subscription.queueName,
+        subscription.handler,
+        subscription.options
+      );
+    }
+  }
+
+  /** Подключается к RabbitMQ и объявляет exchange user.events. */
   async connect(): Promise<void> {
     if (this.channel) {
       return;
     }
 
-    const rabbitMqUrl = process.env.RABBITMQ_URL;
+    const { maxAttempts, retryDelayMs, maxRetryDelayMs } = this.getRetryConfig();
 
-    if (!rabbitMqUrl) {
-      throw new Error('RABBITMQ_URL is not configured');
-    }
-
-    try {
-      this.connection = await amqp.connect(rabbitMqUrl);
-
-      this.connection.on('error', (error) => {
-        console.log('[EventBus] Connection error:', error);
-      });
-
-      this.connection.on('close', () => {
-        console.log('[EventBus] Connection closed');
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await this.establishConnection();
+        return;
+      } catch (error) {
         this.connection = null;
         this.channel = null;
-      });
 
-      this.channel = await this.connection.createChannel();
-      await this.channel.prefetch(10);
+        if (attempt === maxAttempts) {
+          console.log('[EventBus] Failed to connect to RabbitMQ:', error);
+          throw error;
+        }
 
-      this.channel.on('error', (error) => {
-        console.log('[EventBus] Channel error:', error);
-      });
+        const nextDelayMs = Math.min(retryDelayMs * attempt, maxRetryDelayMs);
 
-      await this.channel.assertExchange(USER_EVENTS_EXCHANGE, 'topic', {
-        durable: true,
-      });
+        console.warn(
+          `[EventBus] RabbitMQ connection attempt ${attempt}/${maxAttempts} failed. Retrying in ${nextDelayMs}ms:`,
+          error
+        );
 
-      console.log('[EventBus] Connected to RabbitMQ');
-    } catch (error) {
-      this.connection = null;
-      this.channel = null;
-      console.log('[EventBus] Failed to connect to RabbitMQ:', error);
-      throw error;
+        await sleep(nextDelayMs);
+      }
     }
   }
 
-  /** Publishes a durable user-domain event. */
+  /** Публикует событие в exchange user.events. */
   async publish(
     routingKey: UserEventRoutingKey,
     payload: UserEventPayload
@@ -178,8 +280,9 @@ export class EventBus {
       throw new Error('RabbitMQ channel is not available');
     }
 
+    const { userEventsExchange } = getConfig();
     const isPublished = channel.publish(
-      USER_EVENTS_EXCHANGE,
+      userEventsExchange,
       routingKey,
       Buffer.from(JSON.stringify(payload)),
       {
@@ -196,16 +299,11 @@ export class EventBus {
     console.log(`[EventBus] Published ${routingKey}:`, payload);
   }
 
-  /** Subscribes to a durable queue with manual acknowledgements. */
-  async subscribe(
+  private async attachConsumer(
     queueName: string,
     handler: EventHandler,
     options?: SubscribeOptions
   ): Promise<void> {
-    if (!this.channel) {
-      await this.connect();
-    }
-
     const channel = this.channel;
 
     if (!channel) {
@@ -247,8 +345,29 @@ export class EventBus {
     console.log(`[EventBus] Subscribed to queue ${queueName}`);
   }
 
-  /** Closes the RabbitMQ channel and connection. */
+  /** Подписывается на очередь с ручным подтверждением сообщений. */
+  async subscribe(
+    queueName: string,
+    handler: EventHandler,
+    options?: SubscribeOptions
+  ): Promise<void> {
+    const alreadyRegistered = this.subscriptions.some((sub) => sub.queueName === queueName);
+
+    if (!alreadyRegistered) {
+      this.subscriptions.push({ queueName, handler, options });
+    }
+
+    if (!this.channel) {
+      await this.connect();
+    }
+
+    await this.attachConsumer(queueName, handler, options);
+  }
+
+  /** Закрывает соединение с RabbitMQ. */
   async disconnect(): Promise<void> {
+    this.shuttingDown = true;
+
     try {
       if (this.channel) {
         await this.channel.close();

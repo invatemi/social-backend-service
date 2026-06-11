@@ -1,0 +1,57 @@
+filebeat.inputs: []
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      host: "unix:///var/run/docker.sock"
+      hints.enabled: false
+      templates:
+        - condition:
+            or:
+              - contains:
+                  docker.container.name: "social-"
+              - equals:
+                  docker.container.name: "krakend"
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              processors:
+                - add_docker_metadata:
+                    host: "unix:///var/run/docker.sock"
+                - decode_json_fields:
+                    fields: ["message"]
+                    target: ""
+                    overwrite_keys: true
+                    add_error_key: true
+                - add_fields:
+                    target: ""
+                    fields:
+                      log_source: docker
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_fields:
+      target: event
+      fields:
+        module: filebeat
+        dataset: microservices
+
+setup.ilm.enabled: false
+setup.template.enabled: true
+setup.template.name: "logs-microservices"
+setup.template.pattern: "logs-microservices-*"
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "logs-microservices-%{+yyyy.MM.dd}"
+  pipeline: "microservices-logs"
+  allow_older_versions: true
+
+logging.level: info
+logging.to_files: false
+logging.to_stderr: true

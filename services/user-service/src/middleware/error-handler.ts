@@ -28,7 +28,7 @@ import { AvatarUploadConfigurationError } from '../routes/profile/profile.servic
 import { MailConfigurationError } from '../lib/mailer';
 import { PasswordError } from '../routes/password/password.errors';
 
-/** Maps user-domain errors to HTTP responses. */
+/** Преобразует ошибки user-домена в HTTP-ответы. */
 export const errorHandler = (
   err: Error,
   req: Request,

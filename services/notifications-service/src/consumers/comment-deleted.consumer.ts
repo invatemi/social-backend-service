@@ -1,8 +1,7 @@
 import { z } from 'zod';
+import { getConfig } from '../config/env';
 import { eventBus } from '../middleware/event-bus';
 import { dispatchCommentEvent } from './post-socket.dispatcher';
-
-const QUEUE_NAME = 'notifications.comment.deleted';
 
 const commentDeletedEventSchema = z.object({
   commentId: z.number().int().positive(),
@@ -16,8 +15,10 @@ const commentDeletedEventSchema = z.object({
 
 /** Registers the comment.deleted notification consumer. */
 export const registerCommentDeletedConsumer = async (): Promise<void> => {
+  const { queues, postEventsExchange } = getConfig();
+
   await eventBus.subscribe(
-    QUEUE_NAME,
+    queues.commentDeleted,
     async (message, { ack, nack }) => {
       try {
         const payload = JSON.parse(message.content.toString('utf8')) as unknown;
@@ -31,7 +32,7 @@ export const registerCommentDeletedConsumer = async (): Promise<void> => {
       }
     },
     {
-      exchangeName: 'post.events',
+      exchangeName: postEventsExchange,
       routingKey: 'comment.deleted',
     }
   );

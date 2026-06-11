@@ -1,35 +1,41 @@
-const USER_SERVICE_URL = process.env.USER_SERVICE_URL ?? 'http://social-user-service:3002';
-const USER_SERVICE_TIMEOUT_MS = Number(process.env.USER_SERVICE_TIMEOUT_MS ?? 3000);
+import { getConfig } from '../config/env';
 
-type AudienceResponse = {
-  userIds?: number[];
-};
+/** HTTP-клиент для запросов к user-service. */
+export class UserClient {
+  private readonly baseUrl: string;
+  private readonly timeoutMs: number;
 
-/** Returns user IDs that should receive realtime updates for an author's posts. */
-export const fetchPostAudienceUserIds = async (authorId: number): Promise<number[]> => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), USER_SERVICE_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(`${USER_SERVICE_URL}/api/users/internal/post-audience`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: authorId }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      return [authorId];
-    }
-
-    const data = (await response.json()) as AudienceResponse;
-    const userIds = [...new Set((data.userIds ?? []).filter((id) => Number.isInteger(id) && id > 0))];
-
-    return userIds.length > 0 ? userIds : [authorId];
-  } catch (error) {
-    console.log('[UserClient] Failed to fetch post audience:', error);
-    return [authorId];
-  } finally {
-    clearTimeout(timeout);
+  constructor() {
+    const config = getConfig();
+    this.baseUrl = config.userServiceUrl;
+    this.timeoutMs = config.userServiceTimeoutMs;
   }
-};
+
+  /** Возвращает ID пользователей для realtime-аудитории поста. */
+  async fetchPostAudienceUserIds(userId: number): Promise<number[]> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/api/users/internal/post-audience`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) return [];
+
+      const data = (await response.json()) as { userIds?: number[] };
+      return [...new Set((data.userIds ?? []).filter((id) => Number.isInteger(id) && id > 0))];
+    } catch {
+      return [];
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+export const userClient = new UserClient();
+export const fetchPostAudienceUserIds = (authorId: number) =>
+  userClient.fetchPostAudienceUserIds(authorId);

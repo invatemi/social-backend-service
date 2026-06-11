@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthError, ValidationError, UserAlreadyExistsError, InvalidCredentialsError, InvalidRefreshTokenError } from '../routes/auth.errors';
+import { AuthError, ValidationError, UserAlreadyExistsError, InvalidCredentialsError, InvalidRefreshTokenError } from '../routes/auth/auth.errors';
 
-/** Maps auth errors to HTTP responses. */
+/** Преобразует ошибки аутентификации в HTTP-ответы. */
 export const errorHandler = (
   err: Error,
   req: Request,

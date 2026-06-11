@@ -19,7 +19,7 @@ import {
   PostAlreadyDraftError,
 } from '../routes/post/post.errors';
 
-/** Maps post and comment errors to HTTP responses. */
+/** Преобразует ошибки постов и комментариев в HTTP-ответы. */
 export const errorHandler = (
   err: Error,
   req: Request,

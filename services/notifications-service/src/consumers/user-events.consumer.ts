@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PrismaClient } from '../generated/prisma/client';
+import { getConfig } from '../config/env';
 import { eventBus } from '../middleware/event-bus';
 import { NotificationsService } from '../routes/notifications/notifications.service';
 import { mapFriendStatusToSseEvent } from '../routes/notifications/sse-event-mapper';
@@ -67,10 +68,11 @@ const parseMessage = <T>(schema: z.ZodType<T>, content: Buffer): T => {
 export const registerUserEventConsumers = async (
   prisma: PrismaClient
 ): Promise<void> => {
+  const { queues, userEventsExchange } = getConfig();
   const notificationsService = new NotificationsService(prisma);
 
   await eventBus.subscribe(
-    'notifications.user.friend.requested',
+    queues.friendRequested,
     async (message, { ack, nack }) => {
       try {
         const event = parseMessage(friendRequestedSchema, message.content);
@@ -91,13 +93,13 @@ export const registerUserEventConsumers = async (
       }
     },
     {
-      exchangeName: 'user.events',
+      exchangeName: userEventsExchange,
       routingKey: 'friend.requested',
     }
   );
 
   await eventBus.subscribe(
-    'notifications.user.friend.accepted',
+    queues.friendAccepted,
     async (message, { ack, nack }) => {
       try {
         const event = parseMessage(friendAcceptedSchema, message.content);
@@ -118,13 +120,13 @@ export const registerUserEventConsumers = async (
       }
     },
     {
-      exchangeName: 'user.events',
+      exchangeName: userEventsExchange,
       routingKey: 'friend.accepted',
     }
   );
 
   await eventBus.subscribe(
-    'notifications.user.friend.removed',
+    queues.friendRemoved,
     async (message, { ack, nack }) => {
       try {
         const event = parseMessage(friendRemovedSchema, message.content);
@@ -145,13 +147,13 @@ export const registerUserEventConsumers = async (
       }
     },
     {
-      exchangeName: 'user.events',
+      exchangeName: userEventsExchange,
       routingKey: 'friend.removed',
     }
   );
 
   await eventBus.subscribe(
-    'notifications.user.friend.cancelled',
+    queues.friendCancelled,
     async (message, { ack, nack }) => {
       try {
         const event = parseMessage(friendStatusSchema, message.content);
@@ -170,13 +172,13 @@ export const registerUserEventConsumers = async (
       }
     },
     {
-      exchangeName: 'user.events',
+      exchangeName: userEventsExchange,
       routingKey: 'friend.cancelled',
     }
   );
 
   await eventBus.subscribe(
-    'notifications.user.friend.declined',
+    queues.friendDeclined,
     async (message, { ack, nack }) => {
       try {
         const event = parseMessage(friendStatusSchema, message.content);
@@ -195,13 +197,13 @@ export const registerUserEventConsumers = async (
       }
     },
     {
-      exchangeName: 'user.events',
+      exchangeName: userEventsExchange,
       routingKey: 'friend.declined',
     }
   );
 
   await eventBus.subscribe(
-    'notifications.user.follow.created',
+    queues.followCreated,
     async (message, { ack, nack }) => {
       try {
         const event = parseMessage(followSchema, message.content);
@@ -222,13 +224,13 @@ export const registerUserEventConsumers = async (
       }
     },
     {
-      exchangeName: 'user.events',
+      exchangeName: userEventsExchange,
       routingKey: 'follow.created',
     }
   );
 
   await eventBus.subscribe(
-    'notifications.user.follow.deleted',
+    queues.followDeleted,
     async (message, { ack, nack }) => {
       try {
         const event = parseMessage(followSchema, message.content);
@@ -249,13 +251,13 @@ export const registerUserEventConsumers = async (
       }
     },
     {
-      exchangeName: 'user.events',
+      exchangeName: userEventsExchange,
       routingKey: 'follow.deleted',
     }
   );
 
   await eventBus.subscribe(
-    'notifications.user.updated',
+    queues.userUpdated,
     async (message, { ack, nack }) => {
       try {
         const event = parseMessage(userUpdatedSchema, message.content);
@@ -276,7 +278,7 @@ export const registerUserEventConsumers = async (
       }
     },
     {
-      exchangeName: 'user.events',
+      exchangeName: userEventsExchange,
       routingKey: 'user.updated',
     }
   );

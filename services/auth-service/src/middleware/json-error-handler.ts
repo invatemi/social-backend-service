@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 
-/** Converts invalid JSON bodies to a client error response. */
+/** Возвращает ошибку при невалидном JSON в теле запроса. */
 export const jsonErrorHandler = (
   err: any,
   req: Request,

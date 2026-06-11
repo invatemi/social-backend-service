@@ -21,10 +21,12 @@ const validateUserId = (userId: unknown): number => {
   return id;
 };
 
+/** Бизнес-логика хранения и доставки уведомлений. */
 export class NotificationsService {
+  /** Принимает Prisma-клиент для работы с notifications-базой. */
   constructor(private prisma: PrismaClient) {}
 
-  /** Creates a notification and pushes it to active WebSocket clients. */
+  /** Создаёт уведомление и отправляет его через WebSocket. */
   async createNotification(input: CreateNotificationInput) {
     const notification = await this.prisma.notification.create({
       data: input,
@@ -42,7 +44,7 @@ export class NotificationsService {
     return notification;
   }
 
-  /** Returns recent notifications for a user. */
+  /** Возвращает последние уведомления пользователя. */
   async listUserNotifications(userId: number, unreadOnly = false) {
     const recipientUserId = validateUserId(userId);
 
@@ -56,7 +58,7 @@ export class NotificationsService {
     });
   }
 
-  /** Marks one notification as read for a user. */
+  /** Помечает одно уведомление как прочитанное. */
   async markAsRead(userId: number, notificationId: number) {
     const recipientUserId = validateUserId(userId);
     const id = validateUserId(notificationId);
@@ -73,7 +75,7 @@ export class NotificationsService {
     });
   }
 
-  /** Marks all notifications as read for a user. */
+  /** Помечает все уведомления пользователя как прочитанные. */
   async markAllAsRead(userId: number) {
     const recipientUserId = validateUserId(userId);
 

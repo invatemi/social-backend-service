@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import type { PrismaClient } from '@prisma/client/index';
+import type { PrismaClient } from '../../generated/prisma';
 import { PostService } from './post.service';
 import { KrakenDRequest, krakendAuthMiddleware } from '../../middleware/krakend-auth';
 

@@ -2,7 +2,8 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { Pool } from 'pg';
 import { PrismaClient } from '../../generated/prisma';
-import { sendMail } from '../../lib/mailer';
+import { getConfig } from '../../config/env';
+import { mailer } from '../../lib/mailer';
 import {
   InvalidVerificationCodeError,
   PasswordUserNotFoundError,
@@ -10,11 +11,7 @@ import {
   VerificationCodeExpiredError,
 } from './password.errors';
 
-const PASSWORD_CHANGE_PURPOSE = 'password_change';
-const BCRYPT_SALT_ROUNDS = 10;
-
-const getCodeTtlMs = (): number =>
-  Number(process.env.PASSWORD_CODE_TTL_MINUTES ?? 15) * 60 * 1000;
+const getCodeTtlMs = (): number => getConfig().passwordCodeTtlMinutes * 60 * 1000;
 
 const hashVerificationCode = (code: string): string =>
   crypto.createHash('sha256').update(code).digest('hex');
@@ -23,20 +20,28 @@ const generateVerificationCode = (): string =>
   String(Math.floor(1000 + Math.random() * 9000));
 
 const validatePassword = (password: string): string => {
+  const { minPasswordLength } = getConfig();
   const trimmed = password.trim();
-  if (trimmed.length < 8) {
-    throw new PasswordValidationError('Password must be at least 8 characters', 'newPassword');
+  if (trimmed.length < minPasswordLength) {
+    throw new PasswordValidationError(
+      `Password must be at least ${minPasswordLength} characters`,
+      'newPassword'
+    );
   }
   return trimmed;
 };
 
+/** Логика смены пароля через email-код подтверждения. */
 export class PasswordService {
+  /** Принимает Prisma user-базы и пул auth-базы. */
   constructor(
     private prisma: PrismaClient,
     private authPool: Pool
   ) {}
 
+  /** Генерирует код и отправляет его на email пользователя. */
   async requestPasswordChangeCode(userId: number): Promise<{ message: string; email: string }> {
+    const { passwordChangePurpose, passwordCodeTtlMinutes } = getConfig();
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { email: true },
@@ -49,7 +54,6 @@ export class PasswordService {
     const code = generateVerificationCode();
     const codeHash = hashVerificationCode(code);
     const expiresAt = new Date(Date.now() + getCodeTtlMs());
-    const ttlMinutes = Number(process.env.PASSWORD_CODE_TTL_MINUTES ?? 15);
 
     await this.authPool.query(
       `
@@ -62,13 +66,13 @@ export class PasswordService {
         is_used = false,
         created_at = NOW()
       `,
-      [userId, codeHash, PASSWORD_CHANGE_PURPOSE, expiresAt]
+      [userId, codeHash, passwordChangePurpose, expiresAt]
     );
 
-    await sendMail({
+    await mailer.send({
       to: user.email,
       subject: 'Код для смены пароля',
-      text: `Ваш код подтверждения: ${code}\n\nКод действителен ${ttlMinutes} минут.`,
+      text: `Ваш код подтверждения: ${code}\n\nКод действителен ${passwordCodeTtlMinutes} минут.`,
     });
 
     return {
@@ -77,11 +81,13 @@ export class PasswordService {
     };
   }
 
+  /** Проверяет код и обновляет пароль в auth-базе. */
   async verifyCodeAndChangePassword(
     userId: number,
     code: string,
     newPassword: string
   ): Promise<{ message: string }> {
+    const { passwordChangePurpose, bcryptSaltRounds } = getConfig();
     const normalizedCode = code.trim();
     if (!/^\d{4}$/.test(normalizedCode)) {
       throw new PasswordValidationError('Code must be 4 digits', 'code');
@@ -99,7 +105,7 @@ export class PasswordService {
       FROM verification_codes
       WHERE user_id = $1 AND purpose = $2
       `,
-      [userId, PASSWORD_CHANGE_PURPOSE]
+      [userId, passwordChangePurpose]
     );
 
     const verification = verificationResult.rows[0];
@@ -115,7 +121,7 @@ export class PasswordService {
       throw new InvalidVerificationCodeError();
     }
 
-    const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+    const passwordHash = await bcrypt.hash(password, bcryptSaltRounds);
 
     const updateResult = await this.authPool.query(
       `UPDATE auth_accounts SET password_hash = $1 WHERE id = $2`,
@@ -128,7 +134,7 @@ export class PasswordService {
 
     await this.authPool.query(
       `UPDATE verification_codes SET is_used = true WHERE user_id = $1 AND purpose = $2`,
-      [userId, PASSWORD_CHANGE_PURPOSE]
+      [userId, passwordChangePurpose]
     );
 
     await this.authPool.query(`DELETE FROM refresh_tokens WHERE user_id = $1`, [userId]);

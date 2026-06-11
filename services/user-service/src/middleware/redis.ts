@@ -1,120 +1,124 @@
 import { createClient } from 'redis';
+import { getConfig } from '../config/env';
 
-const redisUrl = process.env.REDIS_URL;
-const connectTimeout = Number(process.env.REDIS_CONNECT_TIMEOUT_MS ?? 5000);
+type RedisClient = ReturnType<typeof createClient>;
 
-const redisClient = createClient({
-  url: redisUrl,
-  socket: {
-    connectTimeout,
-    reconnectStrategy: (retries) => Math.min(retries * 100, 2000),
-  },
-});
+/** Кэш на базе Redis с безопасным отключением при недоступности. */
+export class RedisCache {
+  private readonly client: RedisClient;
+  private connectPromise: Promise<RedisClient | null> | null = null;
+  private readonly redisUrl: string;
+  private readonly connectTimeout: number;
+  private readonly reconnectBaseMs: number;
+  private readonly reconnectMaxMs: number;
 
-redisClient.on('error', (error) => {
-  console.log('[Redis] Client error:', error);
-});
+  /** Создаёт клиент Redis из переменных окружения. */
+  constructor() {
+    const config = getConfig();
+    this.redisUrl = config.redisUrl;
+    this.connectTimeout = config.redisConnectTimeoutMs;
+    this.reconnectBaseMs = config.redisReconnectBaseMs;
+    this.reconnectMaxMs = config.redisReconnectMaxMs;
 
-type RedisClient = typeof redisClient;
+    this.client = createClient({
+      url: this.redisUrl,
+      socket: {
+        connectTimeout: this.connectTimeout,
+        reconnectStrategy: (retries) =>
+          Math.min(retries * this.reconnectBaseMs, this.reconnectMaxMs),
+      },
+    });
 
-let connectPromise: Promise<RedisClient | null> | null = null;
-
-const getRedisClient = async (): Promise<RedisClient | null> => {
-  if (!redisUrl) {
-    return null;
+    this.client.on('error', (error) => {
+      console.log('[Redis] Ошибка клиента:', error);
+    });
   }
 
-  if (redisClient.isReady) {
-    return redisClient;
+  /** Возвращает готовый клиент или null, если Redis недоступен. */
+  private async getClient(): Promise<RedisClient | null> {
+    if (!this.redisUrl) return null;
+    if (this.client.isReady) return this.client;
+
+    if (!this.connectPromise) {
+      this.connectPromise = this.client
+        .connect()
+        .then(() => this.client)
+        .catch((error) => {
+          this.connectPromise = null;
+          console.log('[Redis] Не удалось подключиться:', error);
+          return null;
+        });
+    }
+
+    return this.connectPromise;
   }
 
-  if (!connectPromise) {
-    connectPromise = redisClient
-      .connect()
-      .then(() => redisClient as RedisClient)
-      .catch((error) => {
-        connectPromise = null;
-        console.log('[Redis] Connection failed:', error);
-        return null;
-      });
-  }
-
-  return connectPromise;
-};
-
-export const cache = {
-  /** Reads and parses a cached JSON value. */
+  /** Читает и парсит JSON-значение из кэша. */
   async get<T>(key: string): Promise<T | null> {
     try {
-      const client = await getRedisClient();
+      const client = await this.getClient();
       if (!client) return null;
-
       const value = await client.get(key);
       return value ? (JSON.parse(value) as T) : null;
-    } catch (error) {
-      console.log(`[Redis] Failed to get key ${key}:`, error);
+    } catch {
       return null;
     }
-  },
+  }
 
-  /** Stores a JSON value with TTL. */
+  /** Сохраняет JSON-значение с TTL в секундах. */
   async set<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
     try {
-      const client = await getRedisClient();
+      const client = await this.getClient();
       if (!client) return;
-
       await client.set(key, JSON.stringify(value), { EX: ttlSeconds });
-    } catch (error) {
-      console.log(`[Redis] Failed to set key ${key}:`, error);
+    } catch {
+      /* кэш не критичен */
     }
-  },
+  }
 
-  /** Deletes one cache key. */
+  /** Удаляет один ключ из кэша. */
   async del(key: string): Promise<void> {
     try {
-      const client = await getRedisClient();
+      const client = await this.getClient();
       if (!client) return;
-
       await client.del(key);
-    } catch (error) {
-      console.log(`[Redis] Failed to delete key ${key}:`, error);
+    } catch {
+      /* кэш не критичен */
     }
-  },
+  }
 
-  /** Deletes cache keys in one command. */
+  /** Удаляет несколько ключей за один запрос. */
   async delMany(keys: string[]): Promise<void> {
     if (keys.length === 0) return;
-
     try {
-      const client = await getRedisClient();
+      const client = await this.getClient();
       if (!client) return;
-
       await client.del(keys);
-    } catch (error) {
-      console.log('[Redis] Failed to delete keys:', error);
+    } catch {
+      /* кэш не критичен */
     }
-  },
+  }
 
-  /** Deletes keys matched by a scan pattern. */
+  /** Удаляет ключи по шаблону SCAN. */
   async delPattern(pattern: string): Promise<void> {
     try {
-      const client = await getRedisClient();
+      const client = await this.getClient();
       if (!client) return;
-
       const keys: string[] = [];
       for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
         keys.push(String(key));
       }
-
       await this.delMany(keys);
-    } catch (error) {
-      console.log(`[Redis] Failed to delete keys by pattern ${pattern}:`, error);
+    } catch {
+      /* кэш не критичен */
     }
-  },
+  }
 
-  /** Closes the Redis connection if open. */
+  /** Закрывает соединение с Redis. */
   async disconnect(): Promise<void> {
-    if (!redisClient.isOpen) return;
-    await redisClient.quit();
-  },
-};
+    if (!this.client.isOpen) return;
+    await this.client.quit();
+  }
+}
+
+export const cache = new RedisCache();

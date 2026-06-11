@@ -1,12 +1,11 @@
 import { z } from 'zod';
 import { PrismaClient } from '../generated/prisma';
+import { getConfig } from '../config/env';
 import { eventBus } from '../middleware/event-bus';
 import {
   EmailConflictError,
   UserProvisioningService,
 } from '../routes/profile/user-provisioning.service';
-
-const USER_REGISTERED_QUEUE = 'user-service.user.registered';
 
 const userRegisteredSchema = z.object({
   userId: z.number().int().positive(),
@@ -25,10 +24,11 @@ const parseMessage = (content: Buffer) => {
 export const registerUserRegisteredConsumer = async (
   prisma: PrismaClient
 ): Promise<void> => {
+  const { userRegisteredQueue, userEventsExchange, userRegisteredRoutingKey } = getConfig();
   const provisioningService = new UserProvisioningService(prisma);
 
   await eventBus.subscribe(
-    USER_REGISTERED_QUEUE,
+    userRegisteredQueue,
     async (message, { ack, nack }) => {
       try {
         const event = parseMessage(message.content);
@@ -52,8 +52,8 @@ export const registerUserRegisteredConsumer = async (
       }
     },
     {
-      exchangeName: 'user.events',
-      routingKey: 'user.registered',
+      exchangeName: userEventsExchange,
+      routingKey: userRegisteredRoutingKey,
     }
   );
 };

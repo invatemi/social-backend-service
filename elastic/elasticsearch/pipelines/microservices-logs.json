@@ -1,0 +1,75 @@
+{
+  "description": "Normalize microservice logs: Pino JSON, plain JSON, and text formats into ECS-compatible log.level",
+  "processors": [
+    {
+      "set": {
+        "field": "event.dataset",
+        "value": "microservices",
+        "override": false
+      }
+    },
+    {
+      "script": {
+        "description": "Normalize log level from Pino numeric, string, or plain-text patterns",
+        "lang": "painless",
+        "source": "String normalized = null;\nif (ctx.containsKey('level')) {\n  def level = ctx.level;\n  if (level instanceof Number) {\n    def map = new HashMap();\n    map.put(10, 'trace');\n    map.put(20, 'debug');\n    map.put(30, 'info');\n    map.put(40, 'warn');\n    map.put(50, 'error');\n    map.put(60, 'fatal');\n    normalized = map.getOrDefault(((Number) level).intValue(), 'unknown');\n  } else {\n    normalized = level.toString().toLowerCase();\n  }\n} else if (ctx.containsKey('severity')) {\n  normalized = ctx.severity.toString().toLowerCase();\n} else if (ctx.containsKey('message') && ctx.message != null) {\n  String msg = ctx.message.toString().toLowerCase();\n  if (msg.contains('error') || msg.contains('failed') || msg.contains('exception')) {\n    normalized = 'error';\n  } else if (msg.contains('warn')) {\n    normalized = 'warn';\n  } else if (msg.contains('debug')) {\n    normalized = 'debug';\n  } else {\n    normalized = 'info';\n  }\n} else {\n  normalized = 'info';\n}\nif (normalized == 'warning') {\n  normalized = 'warn';\n}\nif (normalized == 'err') {\n  normalized = 'error';\n}\nctx.log = ctx.containsKey('log') && ctx.log instanceof Map ? ctx.log : new HashMap();\nctx.log.put('level', normalized);\nctx.log_level = normalized;"
+      }
+    },
+    {
+      "rename": {
+        "field": "service",
+        "target_field": "service.name",
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    },
+    {
+      "rename": {
+        "field": "SERVICE_NAME",
+        "target_field": "service.name",
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    },
+    {
+      "script": {
+        "description": "Fallback service.name from Docker container metadata",
+        "lang": "painless",
+        "if": "ctx.container != null && ctx.container.name != null",
+        "source": "if (ctx.service == null || !(ctx.service instanceof Map)) { ctx.service = new HashMap(); } if (!ctx.service.containsKey('name') || ctx.service.name == null) { ctx.service.name = ctx.container.name; }"
+      }
+    },
+    {
+      "date": {
+        "field": "time",
+        "target_field": "@timestamp",
+        "formats": ["ISO8601", "UNIX_MS", "UNIX"],
+        "ignore_failure": true,
+        "if": "ctx.containsKey('time')"
+      }
+    },
+    {
+      "date": {
+        "field": "timestamp",
+        "target_field": "@timestamp",
+        "formats": ["ISO8601", "UNIX_MS", "UNIX"],
+        "ignore_failure": true,
+        "if": "ctx.containsKey('timestamp')"
+      }
+    }
+  ],
+  "on_failure": [
+    {
+      "set": {
+        "field": "error.message",
+        "value": "{{ _ingest.on_failure_message }}"
+      }
+    },
+    {
+      "set": {
+        "field": "log.level",
+        "value": "error"
+      }
+    }
+  ]
+}

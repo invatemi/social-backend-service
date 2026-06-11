@@ -1,17 +1,16 @@
-import { PrismaClient } from '../generated/prisma';
-import jwt from "jsonwebtoken";
+import { PrismaClient } from '../../generated/prisma';
+import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
-
 import {
   ValidationError,
   UserAlreadyExistsError,
   InvalidCredentialsError,
   InvalidRefreshTokenError,
 } from './auth.errors';
-import { eventBus } from '../lib/event-bus';
+import { eventBus } from '../../middleware/event-bus';
+import { getConfig } from '../../config/env';
 
-// ==================== TYPES ====================
 export interface UserRegistrationData {
   username: string;
   email: string;
@@ -42,16 +41,7 @@ export interface AuthResponse extends AuthTokens {
 export type RegistrationResponse = AuthResponse;
 export type LoginResponse = AuthResponse;
 
-// ==================== CONSTANTS ====================
-const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET as string;
-const ACCESS_TOKEN_KEY_ID = 'auth-service-key';
-const ACCESS_TOKEN_EXPIRY = (process.env.ACCESS_TOKEN_EXPIRY || '15m') as string;
-const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || '7', 10);
-const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
-const DEFAULT_USER_ROLE_ID = 3;
-
-// ==================== VALIDATION HELPERS ====================
-const validateString = (value: unknown, fieldName: string, minLength = 1): string => {
+const validateString = (value: unknown, fieldName: string, minLength: number): string => {
   if (typeof value !== 'string') {
     throw new ValidationError(`${fieldName} must be a string`, fieldName);
   }
@@ -71,92 +61,69 @@ const validateEmail = (email: string): string => {
 };
 
 const validatePassword = (password: string): string => {
+  const { minPasswordLength } = getConfig();
   const trimmed = password.trim();
-  if (trimmed.length < 8) {
-    throw new ValidationError('Password must be at least 8 characters', 'password');
+  if (trimmed.length < minPasswordLength) {
+    throw new ValidationError(
+      `Password must be at least ${minPasswordLength} characters`,
+      'password'
+    );
   }
   return trimmed;
 };
 
-// ==================== AUTH SERVICE ====================
+/** Бизнес-логика регистрации, входа и управления токенами. */
 export class AuthService {
+  /** Принимает Prisma-клиент для работы с auth-базой. */
   constructor(private prisma: PrismaClient) {}
 
-  /** Creates a signed access token for an authenticated user. */
+  /** Создаёт JWT access token для пользователя. */
   generateAccessToken(userId: number, email: string, role: string): string {
-    return jwt.sign(
-      { userId, email, role },
-      ACCESS_TOKEN_SECRET,
-      {
-        expiresIn: ACCESS_TOKEN_EXPIRY,
-        keyid: ACCESS_TOKEN_KEY_ID,
-      } as jwt.SignOptions
-    );
+    const { jwtSecret, accessTokenExpiry, accessTokenKeyId } = getConfig();
+    return jwt.sign({ userId, email, role }, jwtSecret, {
+      expiresIn: accessTokenExpiry,
+      keyid: accessTokenKeyId,
+    } as jwt.SignOptions);
   }
 
-  /** Creates and stores a refresh token for a user. */
+  /** Генерирует и сохраняет refresh token. */
   async generateRefreshToken(userId: number): Promise<string> {
-    const token = crypto.randomBytes(48).toString('hex');
-    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-
-    await this.prisma.refreshToken.create({
-      data: {
-        userId,
-        token,
-        expiresAt,
-      }
-    });
-
+    const { refreshTokenBytes, refreshTokenExpiryDays } = getConfig();
+    const token = crypto.randomBytes(refreshTokenBytes).toString('hex');
+    const expiresAt = new Date(Date.now() + refreshTokenExpiryDays * 24 * 60 * 60 * 1000);
+    await this.prisma.refreshToken.create({ data: { userId, token, expiresAt } });
     return token;
   }
 
-  /** Returns the JWK set for KrakenD JWT validation. */
+  /** Возвращает JWKS для валидации JWT в KrakenD. */
   getJwks() {
-    if (!ACCESS_TOKEN_SECRET) {
-      throw new Error('JWT_SECRET is not configured');
-    }
-
+    const { jwtSecret, accessTokenKeyId } = getConfig();
     return {
-      keys: [
-        {
-          kty: 'oct',
-          alg: 'HS256',
-          kid: ACCESS_TOKEN_KEY_ID,
-          k: Buffer.from(ACCESS_TOKEN_SECRET, 'utf8').toString('base64url'),
-        },
-      ],
+      keys: [{
+        kty: 'oct',
+        alg: 'HS256',
+        kid: accessTokenKeyId,
+        k: Buffer.from(jwtSecret, 'utf8').toString('base64url'),
+      }],
     };
   }
 
-  /** Registers a user and returns public user data with tokens. */
+  /** Регистрирует пользователя и публикует событие user.registered. */
   async registerUser(data: UserRegistrationData): Promise<RegistrationResponse> {
-    const username = validateString(data.username, 'username', 2);
+    const { minUsernameLength, bcryptSaltRounds, defaultUserRoleId } = getConfig();
+    const username = validateString(data.username, 'username', minUsernameLength);
     const email = validateEmail(data.email);
     const password = validatePassword(data.password);
 
-    const existing = await this.prisma.authAccount.findUnique({
-      where: { email }
-    });
-
+    const existing = await this.prisma.authAccount.findUnique({ where: { email } });
     if (existing) {
       throw new UserAlreadyExistsError(email);
     }
 
-    const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-
+    const passwordHash = await bcrypt.hash(password, bcryptSaltRounds);
     const authAccount = await this.prisma.authAccount.create({
-      data: {
-        email,
-        passwordHash,
-        username,
-        roleId: DEFAULT_USER_ROLE_ID,
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: { select: { name: true } }
-      }
+      data: { email, passwordHash, username, roleId: defaultUserRoleId },
+      select: { id: true, username: true, email: true, role: { select: { name: true } } },
     });
 
     const user: UserPublicData = {
@@ -174,37 +141,27 @@ export class AuthService {
         userId: authAccount.id,
         username,
         email,
-        roleId: DEFAULT_USER_ROLE_ID,
+        roleId: defaultUserRoleId,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('[AuthService] Failed to publish user.registered:', error);
+      console.error('[AuthService] Не удалось опубликовать user.registered:', error);
     }
 
-    return {
-      accessToken,
-      refreshToken,
-      user,
-    };
+    return { accessToken, refreshToken, user };
   }
 
-  /** Authenticates credentials and returns public user data with tokens. */
+  /** Проверяет учётные данные и выдаёт токены. */
   async login(data: UserLoginData): Promise<LoginResponse> {
     const email = validateEmail(data.email);
     const password = validatePassword(data.password);
 
     const authAccount = await this.prisma.authAccount.findUnique({
       where: { email },
-      include: { role: true }
+      include: { role: true },
     });
 
-    if (!authAccount) {
-      throw new InvalidCredentialsError();
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, authAccount.passwordHash);
-    
-    if (!isPasswordValid) {
+    if (!authAccount || !(await bcrypt.compare(password, authAccount.passwordHash))) {
       throw new InvalidCredentialsError();
     }
 
@@ -215,29 +172,27 @@ export class AuthService {
       role: authAccount.role.name,
     };
 
-    const accessToken = this.generateAccessToken(publicUser.id, publicUser.email, publicUser.role);
-    const refreshToken = await this.generateRefreshToken(publicUser.id);
-
     return {
-      accessToken,
-      refreshToken,
+      accessToken: this.generateAccessToken(publicUser.id, publicUser.email, publicUser.role),
+      refreshToken: await this.generateRefreshToken(publicUser.id),
       user: publicUser,
     };
   }
 
-  /** Rotates a valid refresh token and returns fresh tokens. */
+  /** Обновляет access token по действующему refresh token. */
   async refreshAccessToken(refreshToken: string): Promise<AuthTokens> {
-    if (!refreshToken || typeof refreshToken !== 'string' || refreshToken.length !== 96) {
+    const expectedRefreshTokenLength = getConfig().refreshTokenBytes * 2;
+    if (
+      !refreshToken ||
+      typeof refreshToken !== 'string' ||
+      refreshToken.length !== expectedRefreshTokenLength
+    ) {
       throw new InvalidRefreshTokenError('Invalid refresh token format');
     }
 
     const refreshTokenRecord = await this.prisma.refreshToken.findUnique({
       where: { token: refreshToken },
-      include: { 
-        authAccount: { 
-          include: { role: true }
-        } 
-      }
+      include: { authAccount: { include: { role: true } } },
     });
 
     if (!refreshTokenRecord) {
@@ -245,48 +200,31 @@ export class AuthService {
     }
 
     if (refreshTokenRecord.expiresAt < new Date()) {
-      await this.prisma.refreshToken.delete({
-        where: { token: refreshToken }
-      });
+      await this.prisma.refreshToken.delete({ where: { token: refreshToken } });
       throw new InvalidRefreshTokenError('Refresh token expired');
     }
 
     const authAccount = refreshTokenRecord.authAccount;
-    
     const newAccessToken = this.generateAccessToken(
       authAccount.id,
       authAccount.email,
       authAccount.role.name
     );
-    
     const newRefreshToken = await this.generateRefreshToken(authAccount.id);
+    await this.prisma.refreshToken.delete({ where: { token: refreshToken } });
 
-    await this.prisma.refreshToken.delete({
-      where: { token: refreshToken }
-    });
-
-    return {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-    };
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
-  /** Deletes a refresh token if it exists. */
+  /** Удаляет refresh token при выходе из системы. */
   async logout(refreshToken: string): Promise<void> {
     if (!refreshToken || typeof refreshToken !== 'string') {
       throw new ValidationError('Refresh token is required', 'refreshToken');
     }
-
     try {
-      await this.prisma.refreshToken.delete({
-        where: { token: refreshToken }
-      });
+      await this.prisma.refreshToken.delete({ where: { token: refreshToken } });
     } catch (error: any) {
-      if (error.code === 'P2025') {
-        console.warn('Refresh token not found, skipping deletion');
-        return;
-      }
-      throw error;
+      if (error.code !== 'P2025') throw error;
     }
   }
 }

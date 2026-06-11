@@ -1,4 +1,4 @@
-// Базовый класс для всех ошибок аутентификации
+/** Базовая ошибка домена аутентификации. */
 export class AuthError extends Error {
   constructor(message: string, public readonly code: string) {
     super(message);
@@ -6,7 +6,7 @@ export class AuthError extends Error {
   }
 }
 
-// Ошибки валидации ввода (400 Bad Request)
+/** Ошибка валидации входных данных. */
 export class ValidationError extends AuthError {
   constructor(message: string, public readonly field?: string) {
     super(message, 'VALIDATION_ERROR');
@@ -14,7 +14,7 @@ export class ValidationError extends AuthError {
   }
 }
 
-// Пользователь уже существует (409 Conflict)
+/** Пользователь с таким email уже существует. */
 export class UserAlreadyExistsError extends AuthError {
   constructor(email: string) {
     super(`User with email "${email}" already exists`, 'USER_EXISTS');
@@ -22,7 +22,7 @@ export class UserAlreadyExistsError extends AuthError {
   }
 }
 
-// Неверные учётные данные (401 Unauthorized)
+/** Неверный email или пароль. */
 export class InvalidCredentialsError extends AuthError {
   constructor() {
     super('Invalid email or password', 'INVALID_CREDENTIALS');
@@ -30,7 +30,7 @@ export class InvalidCredentialsError extends AuthError {
   }
 }
 
-// Refresh token невалиден или истёк (401 Unauthorized)
+/** Refresh token недействителен или истёк. */
 export class InvalidRefreshTokenError extends AuthError {
   constructor(message: string = 'Invalid or expired refresh token') {
     super(message, 'INVALID_REFRESH_TOKEN');
@@ -38,7 +38,7 @@ export class InvalidRefreshTokenError extends AuthError {
   }
 }
 
-// Ошибка авторизации (403 Forbidden)
+/** Доступ запрещён. */
 export class ForbiddenError extends AuthError {
   constructor(message: string = 'Access denied') {
     super(message, 'FORBIDDEN');

@@ -7,10 +7,11 @@ import { UserNotFoundError, ValidationError } from '../followers/followers.error
 import { cache } from '../../middleware/redis';
 import {
   invalidateUserProfileCache,
-  USER_CACHE_TTL_SECONDS,
-  USER_LIST_CACHE_TTL_SECONDS,
+  getUserCacheTtlSeconds,
+  getUserListCacheTtlSeconds,
   userCacheKeys,
 } from '../../middleware/user-cache';
+import { getConfig } from '../../config/env';
 import { PaginationParams, splitPage } from '../../utils/pagination';
 
 export interface UpdateProfileInput {
@@ -48,8 +49,6 @@ export interface PostAuthorData {
   avatarUrl: string | null;
 }
 
-const MAX_AUTHORS_BATCH_SIZE = 50;
-
 export interface AvatarUploadUrlData {
   uploadUrl: string;
   publicUrl: string;
@@ -80,9 +79,13 @@ const validateUserId = (userId: unknown): number => {
 };
 
 const validateSearchQuery = (query: unknown): string => {
+  const { minSearchQueryLength } = getConfig();
   const value = String(query ?? '').trim();
-  if (value.length < 2) {
-    throw new ValidationError('Search query must be at least 2 characters', 'q');
+  if (value.length < minSearchQueryLength) {
+    throw new ValidationError(
+      `Search query must be at least ${minSearchQueryLength} characters`,
+      'q'
+    );
   }
   return value;
 };
@@ -98,22 +101,14 @@ const sanitizeFileName = (fileName: string | undefined): string => {
   return sanitized || 'avatar';
 };
 
-const getRequiredEnv = (name: string): string => {
-  const value = process.env[name];
-  if (!value) {
-    throw new AvatarUploadConfigurationError(`${name} is required for avatar uploads`);
-  }
-  return value;
-};
-
 const joinPublicUrl = (baseUrl: string, key: string): string => {
   const encodedKey = key.split('/').map(encodeURIComponent).join('/');
   return `${baseUrl.replace(/\/+$/, '')}/${encodedKey}`;
 };
 
-const resolveUploadEndpoint = (publicBaseUrl: string): string => {
-  if (process.env.S3_UPLOAD_ENDPOINT) {
-    return process.env.S3_UPLOAD_ENDPOINT;
+const resolveUploadEndpoint = (publicBaseUrl: string, uploadEndpoint: string): string => {
+  if (uploadEndpoint) {
+    return uploadEndpoint;
   }
   return new URL(publicBaseUrl).origin;
 };
@@ -165,7 +160,7 @@ export class ProfileService {
       ...(await this.getProfileCounts(id)),
     };
 
-    await cache.set(cacheKey, result, USER_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserCacheTtlSeconds());
     return result;
   }
 
@@ -253,9 +248,10 @@ export class ProfileService {
       return [];
     }
 
-    if (uniqueIds.length > MAX_AUTHORS_BATCH_SIZE) {
+    const { maxAuthorsBatchSize } = getConfig();
+    if (uniqueIds.length > maxAuthorsBatchSize) {
       throw new ValidationError(
-        `userIds must contain at most ${MAX_AUTHORS_BATCH_SIZE} items`,
+        `userIds must contain at most ${maxAuthorsBatchSize} items`,
         'userIds'
       );
     }
@@ -319,7 +315,7 @@ export class ProfileService {
       nextCursor: page.nextCursor,
     };
 
-    await cache.set(cacheKey, result, USER_LIST_CACHE_TTL_SECONDS);
+    await cache.set(cacheKey, result, getUserListCacheTtlSeconds());
     return result;
   }
 
@@ -340,39 +336,46 @@ export class ProfileService {
     });
     if (!user) throw new UserNotFoundError(id);
 
-    const bucket = getRequiredEnv('S3_BUCKET');
-    const publicBaseUrl = getRequiredEnv('S3_PUBLIC_BASE_URL');
-    const uploadEndpoint = resolveUploadEndpoint(publicBaseUrl);
-    const expiresIn = Number(process.env.S3_UPLOAD_URL_TTL_SECONDS ?? 300);
+    const {
+      s3Bucket,
+      s3PublicBaseUrl,
+      s3UploadEndpoint,
+      s3UploadUrlTtlSeconds,
+      s3Region,
+      s3ForcePathStyle,
+      s3AccessKeyId,
+      s3SecretAccessKey,
+    } = getConfig();
+    const uploadEndpoint = resolveUploadEndpoint(s3PublicBaseUrl, s3UploadEndpoint);
     const key = `avatars/${id}/${randomUUID()}-${sanitizeFileName(input.fileName)}`;
 
     const client = new S3Client({
-      region: process.env.S3_REGION ?? 'us-east-1',
+      region: s3Region,
       endpoint: uploadEndpoint,
-      forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== 'false',
+      forcePathStyle: s3ForcePathStyle,
       credentials: {
-        accessKeyId: getRequiredEnv('S3_ACCESS_KEY_ID'),
-        secretAccessKey: getRequiredEnv('S3_SECRET_ACCESS_KEY'),
+        accessKeyId: s3AccessKeyId,
+        secretAccessKey: s3SecretAccessKey,
       },
     });
 
     const command = new PutObjectCommand({
-      Bucket: bucket,
+      Bucket: s3Bucket,
       Key: key,
       ContentType: contentType,
     });
 
     const uploadUrl = await getSignedUrl(client, command, {
-      expiresIn,
+      expiresIn: s3UploadUrlTtlSeconds,
       signableHeaders: new Set(['content-type']),
     });
 
     return {
       uploadUrl,
-      publicUrl: joinPublicUrl(publicBaseUrl, key),
+      publicUrl: joinPublicUrl(s3PublicBaseUrl, key),
       method: 'PUT',
       headers: { 'Content-Type': contentType },
-      expiresIn,
+      expiresIn: s3UploadUrlTtlSeconds,
       key,
     };
   }

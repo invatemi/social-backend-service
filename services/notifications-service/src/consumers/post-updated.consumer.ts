@@ -1,8 +1,7 @@
 import { z } from 'zod';
+import { getConfig } from '../config/env';
 import { eventBus } from '../middleware/event-bus';
 import { dispatchPostFeedEvent } from './post-socket.dispatcher';
-
-const QUEUE_NAME = 'notifications.post.updated';
 
 const postUpdatedEventSchema = z.object({
   postId: z.number().int().positive(),
@@ -18,8 +17,10 @@ const postUpdatedEventSchema = z.object({
 
 /** Registers the post.updated notification consumer. */
 export const registerPostUpdatedConsumer = async (): Promise<void> => {
+  const { queues, postEventsExchange } = getConfig();
+
   await eventBus.subscribe(
-    QUEUE_NAME,
+    queues.postUpdated,
     async (message, { ack, nack }) => {
       try {
         const payload = JSON.parse(message.content.toString('utf8')) as unknown;
@@ -36,7 +37,7 @@ export const registerPostUpdatedConsumer = async (): Promise<void> => {
       }
     },
     {
-      exchangeName: 'post.events',
+      exchangeName: postEventsExchange,
       routingKey: 'post.updated',
     }
   );

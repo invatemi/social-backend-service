@@ -1,0 +1,9 @@
+{"level":30,"time":"2026-06-11T10:00:00.000Z","service":"social-user-service","pid":1,"msg":"social-user-service запущен на порту 3002","port":3002}
+{"level":20,"time":"2026-06-11T10:00:01.000Z","service":"social-user-service","pid":1,"msg":"Redis connection established","host":"redis"}
+{"level":40,"time":"2026-06-11T10:00:02.000Z","service":"social-user-service","pid":1,"msg":"[EventBus] Reconnecting to RabbitMQ","attempt":2}
+{"level":50,"time":"2026-06-11T10:00:03.000Z","service":"social-user-service","pid":1,"msg":"[EventBus] Handler failed for queue user.registered","err":{"type":"Error","message":"Connection reset","stack":"Error: Connection reset\n    at ..."}}
+{"level":"info","timestamp":"2026-06-11T10:00:04.000Z","service":"social-auth-service","message":"User registered successfully","userId":"usr_123"}
+{"level":"debug","timestamp":"2026-06-11T10:00:05.000Z","service":"social-post-service","message":"Cache miss for post list","page":1}
+{"level":"warning","timestamp":"2026-06-11T10:00:06.000Z","service":"social-notifications-service","message":"Consumer retry scheduled","queue":"notifications.post.created"}
+{"level":"error","timestamp":"2026-06-11T10:00:07.000Z","service":"social-notifications-service","message":"Failed to process message","error":"Validation failed"}
+{"message":"[2026-06-11T10:00:08.000Z] GET /health","service":"social-auth-service"}

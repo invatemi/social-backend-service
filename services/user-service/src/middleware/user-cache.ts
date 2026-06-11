@@ -1,8 +1,9 @@
 import { cache } from './redis';
+import { getConfig } from '../config/env';
 import { getPaginationCacheSuffix, PaginationParams } from '../utils/pagination';
 
-export const USER_CACHE_TTL_SECONDS = Number(process.env.USER_CACHE_TTL_SECONDS ?? 300);
-export const USER_LIST_CACHE_TTL_SECONDS = Number(process.env.USER_LIST_CACHE_TTL_SECONDS ?? 60);
+export const getUserCacheTtlSeconds = (): number => getConfig().userCacheTtlSeconds;
+export const getUserListCacheTtlSeconds = (): number => getConfig().userListCacheTtlSeconds;
 
 const listKey = (baseKey: string, pagination: PaginationParams): string =>
   `${baseKey}:${getPaginationCacheSuffix(pagination)}`;
