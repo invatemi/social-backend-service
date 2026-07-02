@@ -12,7 +12,7 @@ import {
   jsonErrorHandler,
   eventBus,
 } from './middleware';
-import { authRoutes } from './routes';
+import { authRoutes, internalRoutes } from './routes';
 
 loadEnv();
 const config = getConfig();
@@ -29,6 +29,8 @@ app.use('/api/auth', (req, _res, next) => {
   (req as any).prisma = database.prisma;
   next();
 }, authRoutes);
+
+app.use('/api/auth/internal', internalRoutes);
 
 app.get('/health', createHealthHandler(serviceName, () => database.isHealthy()));
 app.use(errorHandler);

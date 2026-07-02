@@ -15,10 +15,11 @@
     "declarationMap": true,
     "sourceMap": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["node"]
+    "types": ["node", "jest"]
   },
   "include": [
     "src/**/*",
+    "shared/**/*",
     "prisma.config.ts",
     "prisma/**/*"
   ],

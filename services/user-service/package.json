@@ -4,9 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "prebuild": "node ../../scripts/copy-shared-security.cjs",
+    "pretest": "node ../../scripts/copy-shared-security.cjs",
     "dev": "ts-node-dev --inspect=0.0.0.0:9229 --respawn --transpile-only src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "jest --runInBand --coverage",
+    "test:watch": "jest --watch"
   },
   "keywords": [
     "express",
@@ -34,6 +38,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.2.0",
     "@types/amqplib": "^0.10.8",
     "@types/bcrypt": "^6.0.0",
     "@types/dotenv": "^6.1.1",
@@ -45,6 +52,8 @@
     "dotenv": "^17.4.2",
     "nodemon": "^3.1.14",
     "prisma": "7.8.0",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.4",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.0"

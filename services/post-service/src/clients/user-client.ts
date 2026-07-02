@@ -1,4 +1,5 @@
 import { getConfig } from '../config/env';
+import { getInternalAuthHeader, getServiceTokenClient } from './service-token-client';
 
 export interface PostAuthor {
   id: number;
@@ -33,12 +34,20 @@ export class UserClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const authorization = await getInternalAuthHeader();
       const response = await fetch(`${this.baseUrl}/api/users/internal/authors`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authorization,
+        },
         body: JSON.stringify({ userIds: uniqueIds }),
         signal: controller.signal,
       });
+
+      if (response.status === 401) {
+        getServiceTokenClient().clearCache();
+      }
 
       if (!response.ok) {
         uniqueIds.forEach((id) => authorsMap.set(id, this.fallbackAuthor(id)));
@@ -73,12 +82,20 @@ export class UserClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const authorization = await getInternalAuthHeader();
       const response = await fetch(`${this.baseUrl}/api/users/internal/feed-sources`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authorization,
+        },
         body: JSON.stringify({ userId }),
         signal: controller.signal,
       });
+
+      if (response.status === 401) {
+        getServiceTokenClient().clearCache();
+      }
 
       if (!response.ok) return [];
 

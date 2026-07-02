@@ -23,6 +23,7 @@ package-lock.json.bak
 # ==================== BUILD OUTPUTS ====================
 **/dist/
 **/build/
+services/*/shared/security/
 **/*.tsbuildinfo
 
 # ==================== IDE & EDITORS ====================

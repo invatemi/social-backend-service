@@ -1,7 +1,8 @@
 import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { PrismaClient } from '../../generated/prisma';
-import { KrakenDRequest, krakendAuthMiddleware } from '../../middleware/krakend-auth';
+import { KrakenDRequest, userContextMiddleware } from '../../middleware/krakend-auth';
+import { serviceAuthMiddleware } from '../../middleware/service-auth';
 import { ProfileService } from './profile.service';
 import { parsePaginationQuery } from '../../utils/pagination';
 
@@ -38,7 +39,7 @@ const feedSourcesSchema = z
 
 router.get(
   '/me',
-  krakendAuthMiddleware,
+  userContextMiddleware,
   async (req: KrakenDRequest, res: Response, next: NextFunction) => {
     try {
       const prisma = (req as any).prisma as PrismaClient;
@@ -57,7 +58,7 @@ router.get(
 
 router.patch(
   '/me',
-  krakendAuthMiddleware,
+  userContextMiddleware,
   async (req: KrakenDRequest, res: Response, next: NextFunction) => {
     try {
       const prisma = (req as any).prisma as PrismaClient;
@@ -78,7 +79,7 @@ router.patch(
 
 router.get(
   '/me/avatar-upload-url',
-  krakendAuthMiddleware,
+  userContextMiddleware,
   async (req: KrakenDRequest, res: Response, next: NextFunction) => {
     try {
       const prisma = (req as any).prisma as PrismaClient;
@@ -95,6 +96,8 @@ router.get(
     }
   }
 );
+
+router.use('/internal', serviceAuthMiddleware);
 
 router.post('/internal/post-audience', async (req: KrakenDRequest, res: Response, next: NextFunction) => {
   try {

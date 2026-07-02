@@ -43,6 +43,10 @@ export interface PostServiceConfig {
   serviceName: string;
   port: number;
   host: string;
+  jwtSecret: string;
+  authServiceUrl: string;
+  serviceClientId: string;
+  serviceClientSecret: string;
   databaseUrl: string;
   rabbitmqUrl: string;
   redisUrl: string;
@@ -71,6 +75,10 @@ export const getConfig = (): PostServiceConfig => {
       serviceName: requireEnv('SERVICE_NAME'),
       port: requirePositiveInt('PORT'),
       host: requireEnv('HOST'),
+      jwtSecret: requireEnv('JWT_SECRET'),
+      authServiceUrl: requireEnv('AUTH_SERVICE_URL'),
+      serviceClientId: requireEnv('SERVICE_CLIENT_ID'),
+      serviceClientSecret: requireEnv('SERVICE_CLIENT_SECRET'),
       databaseUrl: requireEnv('DATABASE_URL'),
       rabbitmqUrl: requireEnv('RABBITMQ_URL'),
       redisUrl: requireEnv('REDIS_URL'),

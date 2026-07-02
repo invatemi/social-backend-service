@@ -64,6 +64,9 @@ export interface NotificationsServiceConfig {
   databaseUrl: string;
   rabbitmqUrl: string;
   jwtSecret: string;
+  authServiceUrl: string;
+  serviceClientId: string;
+  serviceClientSecret: string;
   userServiceUrl: string;
   userServiceTimeoutMs: number;
   socketCorsOrigin: string;
@@ -91,6 +94,9 @@ export const getConfig = (): NotificationsServiceConfig => {
       databaseUrl: requireEnv('DATABASE_URL'),
       rabbitmqUrl: requireEnv('RABBITMQ_URL'),
       jwtSecret: requireEnv('JWT_SECRET'),
+      authServiceUrl: requireEnv('AUTH_SERVICE_URL'),
+      serviceClientId: requireEnv('SERVICE_CLIENT_ID'),
+      serviceClientSecret: requireEnv('SERVICE_CLIENT_SECRET'),
       userServiceUrl: requireEnv('USER_SERVICE_URL'),
       userServiceTimeoutMs: requirePositiveInt('USER_SERVICE_TIMEOUT_MS'),
       socketCorsOrigin: requireEnv('SOCKET_CORS_ORIGIN'),

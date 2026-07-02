@@ -20,7 +20,7 @@ services:
       social-post-service: { condition: service_healthy }
       social-message-service: { condition: service_healthy }
       social-notifications-service: { condition: service_healthy }
-    networks: [social-net]
+    networks: [edge-net, backend-net]
     restart: unless-stopped
 
   rabbitmq:
@@ -47,7 +47,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   redis:
@@ -72,7 +72,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   minio:
@@ -94,7 +94,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    networks: [social-net]
+    networks: [edge-net, backend-net]
     restart: unless-stopped
 
   minio-create-bucket:
@@ -110,7 +110,7 @@ services:
     volumes:
       - ./minio/init-bucket.sh:/scripts/init-bucket.sh:ro
     entrypoint: ["/bin/sh", "/scripts/init-bucket.sh"]
-    networks: [social-net]
+    networks: [backend-net]
     restart: "no"
 
   elasticsearch:
@@ -125,8 +125,6 @@ services:
       discovery.type: single-node
       xpack.security.enabled: "false"
       xpack.security.enrollment.enabled: "false"
-    ports:
-      - "${BIND_ADDRESS:-127.0.0.1}:${ELASTICSEARCH_EXTERNAL_PORT:-9200}:9200"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     healthcheck:
@@ -135,7 +133,7 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   kibana:
@@ -143,8 +141,6 @@ services:
     build:
       context: ./elastic/kibana
     container_name: kibana
-    ports:
-      - "${BIND_ADDRESS:-127.0.0.1}:${KIBANA_EXTERNAL_PORT:-5601}:5601"
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     depends_on:
@@ -155,7 +151,7 @@ services:
       timeout: 10s
       retries: 10
       start_period: 90s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   filebeat:
@@ -171,12 +167,13 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     depends_on:
       elasticsearch: { condition: service_healthy }
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   social-auth-service:
     build:
-      context: ./services/auth-service
+      context: .
+      dockerfile: services/auth-service/Dockerfile
       args:
         SERVICE_PORT: ${AUTH_PORT:-3001}
     container_name: social-auth
@@ -194,6 +191,10 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      SERVICE_CLIENT_POST_SERVICE_ID: ${SERVICE_CLIENT_POST_SERVICE_ID:-post-service}
+      SERVICE_CLIENT_POST_SERVICE_SECRET: ${SERVICE_CLIENT_POST_SERVICE_SECRET:?Set SERVICE_CLIENT_POST_SERVICE_SECRET in .env}
+      SERVICE_CLIENT_NOTIFICATIONS_SERVICE_ID: ${SERVICE_CLIENT_NOTIFICATIONS_SERVICE_ID:-notifications-service}
+      SERVICE_CLIENT_NOTIFICATIONS_SERVICE_SECRET: ${SERVICE_CLIENT_NOTIFICATIONS_SERVICE_SECRET:?Set SERVICE_CLIENT_NOTIFICATIONS_SERVICE_SECRET in .env}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${AUTH_DB_HOST:-auth-db}:5432/${AUTH_DB_NAME}?schema=public"
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
       ACCESS_TOKEN_KEY_ID: auth-service-key
@@ -217,12 +218,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   social-user-service:
     build:
-      context: ./services/user-service
+      context: .
+      dockerfile: services/user-service/Dockerfile
       args:
         SERVICE_PORT: ${USER_PORT:-3002}
     container_name: social-user
@@ -239,6 +241,8 @@ services:
       DB_NAME: ${USER_DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_API_AUTH_ENABLED: ${INTERNAL_API_AUTH_ENABLED:-true}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${USER_DB_HOST:-user-db}:5432/${USER_DB_NAME}?schema=public"
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
@@ -290,12 +294,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   social-post-service:
     build:
-      context: ./services/post-service
+      context: .
+      dockerfile: services/post-service/Dockerfile
       args:
         SERVICE_PORT: ${POST_PORT:-3003}
     container_name: social-post
@@ -312,6 +317,11 @@ services:
       DB_NAME: ${POST_DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://social-auth-service:3001}
+      SERVICE_CLIENT_ID: ${SERVICE_CLIENT_POST_SERVICE_ID:-post-service}
+      SERVICE_CLIENT_SECRET: ${SERVICE_CLIENT_POST_SERVICE_SECRET:?Set SERVICE_CLIENT_POST_SERVICE_SECRET in .env}
+      INTERNAL_API_AUTH_ENABLED: ${INTERNAL_API_AUTH_ENABLED:-true}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${POST_DB_HOST:-post-db}:5432/${POST_DB_NAME}?schema=public"
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
@@ -339,7 +349,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   social-message-service:
@@ -373,12 +383,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   social-notifications-service:
     build:
-      context: ./services/notifications-service
+      context: .
+      dockerfile: services/notifications-service/Dockerfile
       args:
         SERVICE_PORT: ${NOTIF_PORT:-3005}
     container_name: social-notifications
@@ -393,6 +404,10 @@ services:
       PORT: ${NOTIF_PORT:-3005}
       HOST: 0.0.0.0
       JWT_SECRET: ${JWT_SECRET}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://social-auth-service:3001}
+      SERVICE_CLIENT_ID: ${SERVICE_CLIENT_NOTIFICATIONS_SERVICE_ID:-notifications-service}
+      SERVICE_CLIENT_SECRET: ${SERVICE_CLIENT_NOTIFICATIONS_SERVICE_SECRET:?Set SERVICE_CLIENT_NOTIFICATIONS_SERVICE_SECRET in .env}
+      INTERNAL_API_AUTH_ENABLED: ${INTERNAL_API_AUTH_ENABLED:-true}
       USER_SERVICE_URL: ${USER_SERVICE_URL:-http://social-user-service:3002}
       USER_SERVICE_TIMEOUT_MS: ${USER_SERVICE_TIMEOUT_MS:-3000}
       SOCKET_CORS_ORIGIN: ${CORS_ORIGINS:-http://localhost:5173}
@@ -436,7 +451,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-    networks: [social-net]
+    networks: [edge-net, backend-net]
     restart: unless-stopped
 
   auth-db:
@@ -453,7 +468,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   user-db:
@@ -470,7 +485,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   post-db:
@@ -487,7 +502,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   msg-db:
@@ -504,7 +519,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
   notif-db:
@@ -521,7 +536,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    networks: [social-net]
+    networks: [backend-net]
     restart: unless-stopped
 
 volumes:
@@ -536,5 +551,8 @@ volumes:
   elasticsearch-data:
 
 networks:
-  social-net:
+  edge-net:
     driver: bridge
+  backend-net:
+    driver: bridge
+    internal: true

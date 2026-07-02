@@ -43,6 +43,7 @@ export interface UserServiceConfig {
   serviceName: string;
   port: number;
   host: string;
+  jwtSecret: string;
   databaseUrl: string;
   authDatabaseUrl: string;
   rabbitmqUrl: string;
@@ -93,6 +94,7 @@ export const getConfig = (): UserServiceConfig => {
       serviceName: requireEnv('SERVICE_NAME'),
       port: requirePositiveInt('PORT'),
       host: requireEnv('HOST'),
+      jwtSecret: requireEnv('JWT_SECRET'),
       databaseUrl: requireEnv('DATABASE_URL'),
       authDatabaseUrl: requireEnv('AUTH_DATABASE_URL'),
       rabbitmqUrl: requireEnv('RABBITMQ_URL'),
