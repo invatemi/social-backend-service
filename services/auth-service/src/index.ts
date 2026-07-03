@@ -1,4 +1,5 @@
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import {
   getConfig,
   loadEnv,
@@ -11,6 +12,7 @@ import {
   requestLogger,
   jsonErrorHandler,
   eventBus,
+  createAuthRateLimiters,
 } from './middleware';
 import { authRoutes, internalRoutes } from './routes';
 
@@ -20,10 +22,17 @@ const config = getConfig();
 const database = new Database(config.databaseUrl);
 const app = express();
 const { port, host, serviceName } = config;
+const { loginRateLimiter, registerRateLimiter } = createAuthRateLimiters(config);
+
+app.set('trust proxy', config.trustProxyHops);
 
 app.use(express.json());
+app.use(cookieParser());
 app.use(jsonErrorHandler);
 app.use(requestLogger);
+
+app.use('/api/auth/login', loginRateLimiter);
+app.use('/api/auth/register', registerRateLimiter);
 
 app.use('/api/auth', (req, _res, next) => {
   (req as any).prisma = database.prisma;

@@ -18,6 +18,32 @@
 
 ## Аутентификация
 
+### Токены (SPA + HttpOnly cookie)
+
+| Токен | Где хранится | Как передаётся |
+|-------|--------------|----------------|
+| Access token | Память клиента (Redux) | `Authorization: Bearer <accessToken>` |
+| Refresh token | HttpOnly cookie `refreshToken` | Автоматически браузером на `/api/auth/*` |
+
+**Login / Register** (`200`):
+```json
+{
+  "accessToken": "...",
+  "user": { "id": 1, "username": "...", "email": "...", "role": "user" }
+}
+```
++ `Set-Cookie: refreshToken=...; HttpOnly; Path=/api/auth; SameSite=Lax`
+
+**Refresh** (`POST /api/auth/refresh`, без body):
+```json
+{ "accessToken": "..." }
+```
++ ротация refresh cookie в `Set-Cookie`
+
+**Logout** (`POST /api/auth/logout`): удаляет refresh из БД и очищает cookie.
+
+**CORS (KrakenD):** `allow_credentials: true`, конкретные origins (не `*`), клиент использует `credentials: 'include'`.
+
 ### Публичные endpoint'ы (без JWT)
 
 Примеры: `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/posts`, `GET /api/posts/:id`.
@@ -94,6 +120,7 @@ Auth-service (legacy, без `success` на части endpoint'ов):
 | 404 | Ресурс не найден (post, user, comment, friend request) |
 | 409 | Конфликт (user exists, already following, already published) |
 | 410 | Удалённый комментарий (редко) |
+| 429 | Превышен rate limit (auth login/register) |
 | 500 | Необработанная ошибка |
 | 503 | БД недоступна (health, message-service) |
 
@@ -101,7 +128,7 @@ Auth-service (legacy, без `success` на части endpoint'ов):
 
 ### Auth
 
-`VALIDATION_ERROR`, `USER_EXISTS`, `INVALID_CREDENTIALS`, `INVALID_REFRESH_TOKEN`
+`VALIDATION_ERROR`, `USER_EXISTS`, `INVALID_CREDENTIALS`, `INVALID_REFRESH_TOKEN`, `RATE_LIMIT_EXCEEDED`
 
 ### Post / Comment
 
@@ -122,6 +149,33 @@ Auth-service (legacy, без `success` на части endpoint'ов):
 ### JSON parse
 
 `INVALID_JSON` — невалидное тело запроса (`json-error-handler`).
+
+## Rate limiting (auth-service)
+
+Публичные auth endpoint'ы ограничены по IP (с учётом `X-Forwarded-For` через KrakenD).
+
+| Endpoint | Лимит по умолчанию |
+|----------|-------------------|
+| `POST /api/auth/login` | 5 запросов / минута |
+| `POST /api/auth/register` | 3 запроса / час |
+
+При превышении:
+
+- HTTP `429`
+- Заголовки: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `Retry-After` (секунды)
+- Тело:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Too many requests. Please try again later."
+  }
+}
+```
+
+Хранилище счётчиков — in-memory (single instance). Для кластера — Redis (`rate-limit-redis`).
 
 ## Пагинация
 

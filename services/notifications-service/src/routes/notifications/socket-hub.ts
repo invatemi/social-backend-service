@@ -1,12 +1,7 @@
 import http from 'http';
-import jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
 import { getConfig } from '../../config/env';
-
-type JwtPayload = {
-  userId: number;
-  role?: string;
-};
+import { verifyUserJwt } from '../../../shared/security/verify-user-jwt.js';
 
 const onlineUsers = new Map<number, number>();
 let io: Server | null = null;
@@ -44,14 +39,18 @@ const resolveToken = (socket: Socket): string | null => {
   return null;
 };
 
-const verifySocketToken = (token: string): JwtPayload | null => {
+const verifySocketToken = (token: string): { userId: number; role?: string } | null => {
+  const config = getConfig();
   try {
-    const decoded = jwt.verify(token, getConfig().jwtSecret) as JwtPayload;
-    if (!decoded?.userId || !Number.isInteger(decoded.userId) || decoded.userId <= 0) {
-      return null;
-    }
+    const payload = verifyUserJwt(token, {
+      getJwtSecret: () => config.jwtSecret,
+      clockToleranceSec: config.jwtClockToleranceSec,
+      expectedIssuer: config.jwtIssuer,
+      expectedAudience: config.jwtAudience,
+      claimsStrict: config.jwtClaimsStrict,
+    });
 
-    return decoded;
+    return { userId: payload.userId, role: payload.role };
   } catch {
     return null;
   }

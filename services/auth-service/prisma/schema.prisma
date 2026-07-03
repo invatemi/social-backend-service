@@ -29,12 +29,14 @@ model AuthAccount {
 }
 
 model RefreshToken {
-  id            Int           @id @default(autoincrement())
-  token         String        @unique
-  expiresAt     DateTime      @map("expires_at")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  userId        Int           @map("user_id")
-  authAccount   AuthAccount   @relation(fields: [userId], references: [id])
+  id              Int           @id @default(autoincrement())
+  tokenLookupHash String        @unique @map("token_lookup_hash")
+  tokenHash       String        @map("token_hash")
+  tokenSalt       String        @map("token_salt")
+  expiresAt       DateTime      @map("expires_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  userId          Int           @map("user_id")
+  authAccount     AuthAccount   @relation(fields: [userId], references: [id])
 
   @@map("refresh_tokens")
 }

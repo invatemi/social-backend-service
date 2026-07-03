@@ -33,6 +33,7 @@ export const createServiceAuthMiddleware = (options: ServiceAuthOptions) => {
 
     try {
       const payload = jwt.verify(token, options.getJwtSecret(), {
+        algorithms: ['HS256'],
         clockTolerance,
       }) as ServiceJwtPayload;
 

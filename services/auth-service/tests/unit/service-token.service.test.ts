@@ -1,12 +1,18 @@
 import { ServiceTokenService } from '../../src/routes/internal/service-token.service';
 
+jest.mock('../../src/config/env', () => ({
+  getConfig: () => ({
+    serviceJwtSecret: 'test-service-jwt-secret-at-least-32-chars',
+    serviceJwtTtlSec: 300,
+  }),
+}));
+
 describe('ServiceTokenService', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
     process.env = {
       ...originalEnv,
-      JWT_SECRET: 'test-service-token-secret',
       SERVICE_CLIENT_POST_SERVICE_ID: 'post-service',
       SERVICE_CLIENT_POST_SERVICE_SECRET: 'post-secret',
     };

@@ -10,6 +10,11 @@ import {
 } from './auth.errors';
 import { eventBus } from '../../middleware/event-bus';
 import { getConfig } from '../../config/env';
+import {
+  computeLookupHash,
+  hashRefreshToken,
+  verifyRefreshTokenHash,
+} from '../../lib/refresh-token-hash';
 
 export interface UserRegistrationData {
   username: string;
@@ -74,25 +79,63 @@ const validatePassword = (password: string): string => {
 
 /** Бизнес-логика регистрации, входа и управления токенами. */
 export class AuthService {
+  private readonly refreshTokenInclude = {
+    authAccount: { include: { role: true } },
+  } as const;
+
   /** Принимает Prisma-клиент для работы с auth-базой. */
   constructor(private prisma: PrismaClient) {}
 
   /** Создаёт JWT access token для пользователя. */
   generateAccessToken(userId: number, email: string, role: string): string {
-    const { jwtSecret, accessTokenExpiry, accessTokenKeyId } = getConfig();
-    return jwt.sign({ userId, email, role }, jwtSecret, {
+    const { jwtSecret, accessTokenExpiry, accessTokenKeyId, jwtIssuer, jwtAudience } = getConfig();
+    return jwt.sign({ userId, email, role, typ: 'user' }, jwtSecret, {
+      algorithm: 'HS256',
       expiresIn: accessTokenExpiry,
       keyid: accessTokenKeyId,
+      issuer: jwtIssuer,
+      audience: jwtAudience,
     } as jwt.SignOptions);
   }
 
   /** Генерирует и сохраняет refresh token. */
   async generateRefreshToken(userId: number): Promise<string> {
-    const { refreshTokenBytes, refreshTokenExpiryDays } = getConfig();
+    const { refreshTokenBytes, refreshTokenExpiryDays, refreshTokenPepper } = getConfig();
     const token = crypto.randomBytes(refreshTokenBytes).toString('hex');
     const expiresAt = new Date(Date.now() + refreshTokenExpiryDays * 24 * 60 * 60 * 1000);
-    await this.prisma.refreshToken.create({ data: { userId, token, expiresAt } });
+    const hashed = hashRefreshToken(token, refreshTokenPepper);
+
+    await this.prisma.refreshToken.create({
+      data: {
+        userId,
+        expiresAt,
+        tokenLookupHash: hashed.tokenLookupHash,
+        tokenHash: hashed.tokenHash,
+        tokenSalt: hashed.tokenSalt,
+      },
+    });
+
     return token;
+  }
+
+  private async resolveRefreshTokenRecord(refreshToken: string) {
+    const { refreshTokenPepper } = getConfig();
+    const tokenLookupHash = computeLookupHash(refreshToken, refreshTokenPepper);
+
+    const record = await this.prisma.refreshToken.findUnique({
+      where: { tokenLookupHash },
+      include: this.refreshTokenInclude,
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    if (!verifyRefreshTokenHash(refreshToken, record.tokenSalt, record.tokenHash)) {
+      return null;
+    }
+
+    return record;
   }
 
   /** Возвращает JWKS для валидации JWT в KrakenD. */
@@ -190,17 +233,14 @@ export class AuthService {
       throw new InvalidRefreshTokenError('Invalid refresh token format');
     }
 
-    const refreshTokenRecord = await this.prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
-      include: { authAccount: { include: { role: true } } },
-    });
+    const refreshTokenRecord = await this.resolveRefreshTokenRecord(refreshToken);
 
     if (!refreshTokenRecord) {
       throw new InvalidRefreshTokenError();
     }
 
     if (refreshTokenRecord.expiresAt < new Date()) {
-      await this.prisma.refreshToken.delete({ where: { token: refreshToken } });
+      await this.prisma.refreshToken.delete({ where: { id: refreshTokenRecord.id } });
       throw new InvalidRefreshTokenError('Refresh token expired');
     }
 
@@ -211,7 +251,7 @@ export class AuthService {
       authAccount.role.name
     );
     const newRefreshToken = await this.generateRefreshToken(authAccount.id);
-    await this.prisma.refreshToken.delete({ where: { token: refreshToken } });
+    await this.prisma.refreshToken.delete({ where: { id: refreshTokenRecord.id } });
 
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
@@ -221,8 +261,14 @@ export class AuthService {
     if (!refreshToken || typeof refreshToken !== 'string') {
       throw new ValidationError('Refresh token is required', 'refreshToken');
     }
+
+    const refreshTokenRecord = await this.resolveRefreshTokenRecord(refreshToken);
+    if (!refreshTokenRecord) {
+      return;
+    }
+
     try {
-      await this.prisma.refreshToken.delete({ where: { token: refreshToken } });
+      await this.prisma.refreshToken.delete({ where: { id: refreshTokenRecord.id } });
     } catch (error: any) {
       if (error.code !== 'P2025') throw error;
     }

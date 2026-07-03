@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { getConfig } from '../../config/env';
 
 export interface ServiceClientCredentials {
   secret: string;
@@ -17,7 +18,6 @@ export interface ServiceTokenResponse {
   expires_in: number;
 }
 
-const SERVICE_TOKEN_TTL_SEC = 300;
 const SERVICE_TOKEN_ISSUER = 'auth-service';
 
 /** Resolves registered service clients from environment variables. */
@@ -64,10 +64,7 @@ export class ServiceTokenService {
       throw new Error('INVALID_AUDIENCE');
     }
 
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      throw new Error('JWT_SECRET is not configured');
-    }
+    const { serviceJwtSecret, serviceJwtTtlSec } = getConfig();
 
     const accessToken = jwt.sign(
       {
@@ -77,14 +74,17 @@ export class ServiceTokenService {
         aud: input.audience,
         scope: scopes,
       },
-      jwtSecret,
-      { expiresIn: SERVICE_TOKEN_TTL_SEC }
+      serviceJwtSecret,
+      {
+        algorithm: 'HS256',
+        expiresIn: serviceJwtTtlSec,
+      }
     );
 
     return {
       access_token: accessToken,
       token_type: 'Bearer',
-      expires_in: SERVICE_TOKEN_TTL_SEC,
+      expires_in: serviceJwtTtlSec,
     };
   }
 }

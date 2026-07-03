@@ -5,8 +5,9 @@ const isInternalApiAuthEnabled = (): boolean => process.env.INTERNAL_API_AUTH_EN
 
 /** Protects /api/users/internal/* with service JWT validation. */
 export const serviceAuthMiddleware = createServiceAuthMiddleware({
-  getJwtSecret: () => process.env.JWT_SECRET ?? getConfig().jwtSecret,
+  getJwtSecret: () => process.env.SERVICE_JWT_SECRET ?? '',
   expectedAudience: 'user-service',
   requiredScope: 'internal:users:read',
   isEnabled: isInternalApiAuthEnabled,
+  clockToleranceSec: Number(process.env.JWT_CLOCK_TOLERANCE_SEC ?? 30),
 });

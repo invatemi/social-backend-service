@@ -6,7 +6,9 @@ export interface UserJwtPayload {
   userId: number;
   email?: string;
   role?: UserRole | string;
-  typ?: string;
+  typ?: 'user' | string;
+  iss?: string;
+  aud?: string | string[];
   iat?: number;
   exp?: number;
 }

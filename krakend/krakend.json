@@ -18,6 +18,7 @@
       "method": "POST",
       "public": true,
       "input_headers": ["*"],
+      "output_encoding": "no-op",
       "backend": [{
         "host": ["http://social-auth-service:3001"],
         "url_pattern": "/api/auth/register"

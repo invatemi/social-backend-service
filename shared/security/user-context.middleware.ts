@@ -1,17 +1,13 @@
 import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { extractBearer } from './extract-bearer.js';
-import { AuthenticatedRequest, UserJwtPayload } from './types.js';
+import { AuthenticatedRequest } from './types.js';
+import { UserJwtClaimError, verifyUserJwt, type VerifyUserJwtOptions } from './verify-user-jwt.js';
 
-export interface UserContextOptions {
-  getJwtSecret: () => string;
-  clockToleranceSec?: number;
-}
+export type UserContextOptions = VerifyUserJwtOptions;
 
 /** Validates user JWT and populates req.user; rejects spoofed x-user-id headers. */
 export const createUserContextMiddleware = (options: UserContextOptions) => {
-  const clockTolerance = options.clockToleranceSec ?? 30;
-
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     const token = extractBearer(req.headers.authorization);
     if (!token) {
@@ -23,25 +19,7 @@ export const createUserContextMiddleware = (options: UserContextOptions) => {
     }
 
     try {
-      const payload = jwt.verify(token, options.getJwtSecret(), {
-        clockTolerance,
-      }) as UserJwtPayload;
-
-      if (payload.typ === 'service') {
-        res.status(403).json({
-          success: false,
-          message: 'Forbidden: service token cannot be used for user context',
-        });
-        return;
-      }
-
-      if (!payload.userId || !Number.isInteger(payload.userId) || payload.userId <= 0) {
-        res.status(403).json({
-          success: false,
-          message: 'Forbidden: invalid user token',
-        });
-        return;
-      }
+      const payload = verifyUserJwt(token, options);
 
       const headerUserId = req.headers['x-user-id'];
       if (headerUserId && String(payload.userId) !== String(headerUserId)) {
@@ -55,6 +33,10 @@ export const createUserContextMiddleware = (options: UserContextOptions) => {
       req.user = { userId: payload.userId, role: payload.role };
       next();
     } catch (error) {
+      if (error instanceof UserJwtClaimError) {
+        res.status(403).json({ success: false, message: error.message });
+        return;
+      }
       if (error instanceof jwt.TokenExpiredError) {
         res.status(401).json({ success: false, message: 'Unauthorized: token expired' });
         return;

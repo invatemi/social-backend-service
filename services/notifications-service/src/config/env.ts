@@ -39,6 +39,30 @@ const requirePositiveInt = (name: string): number => {
   return value;
 };
 
+const optionalString = (name: string, defaultValue: string): string => {
+  return process.env[name] ?? defaultValue;
+};
+
+const optionalPositiveInt = (name: string, defaultValue: number): number => {
+  const raw = process.env[name];
+  if (!raw) {
+    return defaultValue;
+  }
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return value;
+};
+
+const optionalBoolean = (name: string, defaultValue: boolean): boolean => {
+  const raw = process.env[name];
+  if (raw === undefined) {
+    return defaultValue;
+  }
+  return raw === 'true' || raw === '1';
+};
+
 export interface NotificationQueuesConfig {
   commentCreated: string;
   commentUpdated: string;
@@ -64,6 +88,10 @@ export interface NotificationsServiceConfig {
   databaseUrl: string;
   rabbitmqUrl: string;
   jwtSecret: string;
+  jwtIssuer: string;
+  jwtAudience: string;
+  jwtClockToleranceSec: number;
+  jwtClaimsStrict: boolean;
   authServiceUrl: string;
   serviceClientId: string;
   serviceClientSecret: string;
@@ -94,6 +122,10 @@ export const getConfig = (): NotificationsServiceConfig => {
       databaseUrl: requireEnv('DATABASE_URL'),
       rabbitmqUrl: requireEnv('RABBITMQ_URL'),
       jwtSecret: requireEnv('JWT_SECRET'),
+      jwtIssuer: optionalString('JWT_ISSUER', 'social-auth-service'),
+      jwtAudience: optionalString('JWT_AUDIENCE', 'social-api'),
+      jwtClockToleranceSec: optionalPositiveInt('JWT_CLOCK_TOLERANCE_SEC', 30),
+      jwtClaimsStrict: optionalBoolean('JWT_CLAIMS_STRICT', false),
       authServiceUrl: requireEnv('AUTH_SERVICE_URL'),
       serviceClientId: requireEnv('SERVICE_CLIENT_ID'),
       serviceClientSecret: requireEnv('SERVICE_CLIENT_SECRET'),

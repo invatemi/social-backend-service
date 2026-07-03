@@ -1,6 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '../../generated/prisma';
 import { AuthService, UserRegistrationData, UserLoginData } from './auth.service';
+import {
+  setRefreshCookie,
+  clearRefreshCookie,
+  getRefreshTokenFromRequest,
+} from '../../middleware/cookie-options';
+import { InvalidRefreshTokenError } from './auth.errors';
 
 const router = Router();
 
@@ -20,7 +26,11 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
   try {
     const { username, email, password } = req.body;
     const result = await getAuthService(req).registerUser({ username, email, password } as UserRegistrationData);
-    res.status(200).json(result);
+    setRefreshCookie(res, result.refreshToken);
+    res.status(200).json({
+      accessToken: result.accessToken,
+      user: result.user,
+    });
   } catch (error) {
     next(error);
   }
@@ -30,7 +40,11 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
   try {
     const { email, password } = req.body;
     const result = await getAuthService(req).login({ email, password } as UserLoginData);
-    res.status(200).json(result);
+    setRefreshCookie(res, result.refreshToken);
+    res.status(200).json({
+      accessToken: result.accessToken,
+      user: result.user,
+    });
   } catch (error) {
     next(error);
   }
@@ -38,9 +52,16 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
 
 router.post('/refresh', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = getRefreshTokenFromRequest(req);
+    if (!refreshToken) {
+      throw new InvalidRefreshTokenError('Refresh token is required');
+    }
+
     const tokens = await getAuthService(req).refreshAccessToken(refreshToken);
-    res.status(200).json(tokens);
+    setRefreshCookie(res, tokens.refreshToken);
+    res.status(200).json({
+      accessToken: tokens.accessToken,
+    });
   } catch (error) {
     next(error);
   }
@@ -48,8 +69,11 @@ router.post('/refresh', async (req: AuthRequest, res: Response, next: NextFuncti
 
 router.post('/logout', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { refreshToken } = req.body;
-    await getAuthService(req).logout(refreshToken);
+    const refreshToken = getRefreshTokenFromRequest(req);
+    if (refreshToken) {
+      await getAuthService(req).logout(refreshToken);
+    }
+    clearRefreshCookie(res);
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
     next(error);

@@ -13,10 +13,13 @@ import { eventBus } from '../../src/middleware/event-bus';
 jest.mock('../../src/config/env', () => ({
   getConfig: () => ({
     jwtSecret: 'test-secret',
+    jwtIssuer: 'social-auth-service',
+    jwtAudience: 'social-api',
     accessTokenExpiry: '15m',
     accessTokenKeyId: 'kid-1',
     refreshTokenBytes: 16,
     refreshTokenExpiryDays: 30,
+    refreshTokenPepper: 'test-pepper-at-least-32-characters-long',
     minPasswordLength: 8,
     minUsernameLength: 3,
     bcryptSaltRounds: 10,
@@ -55,7 +58,7 @@ describe('AuthService unit', () => {
       email: 'alice@example.com',
       role: { name: 'user' },
     });
-    prismaMock.refreshToken.create.mockResolvedValue({ token: 'stored' });
+    prismaMock.refreshToken.create.mockResolvedValue({ id: 1 });
 
     jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed-password' as never);
     jest.spyOn(jwt, 'sign').mockReturnValue('access-token' as never);
@@ -79,7 +82,15 @@ describe('AuthService unit', () => {
     expect(result.accessToken).toBe('access-token');
     expect(result.refreshToken).toHaveLength(32);
     expect(prismaMock.authAccount.create).toHaveBeenCalled();
-    expect(prismaMock.refreshToken.create).toHaveBeenCalled();
+    expect(prismaMock.refreshToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tokenLookupHash: expect.any(String),
+          tokenHash: expect.any(String),
+          tokenSalt: expect.any(String),
+        }),
+      })
+    );
     expect(eventBus.publish).toHaveBeenCalledWith(
       'user.registered',
       expect.objectContaining({
@@ -121,8 +132,15 @@ describe('AuthService unit', () => {
 
   it('refreshAccessToken: удаляет истекший refresh token и возвращает ошибку', async () => {
     const expiredToken = 'a'.repeat(32);
+    const { computeLookupHash, hashRefreshToken } = require('../../src/lib/refresh-token-hash');
+    const pepper = 'test-pepper-at-least-32-characters-long';
+    const hashed = hashRefreshToken(expiredToken, pepper);
+
     prismaMock.refreshToken.findUnique.mockResolvedValue({
-      token: expiredToken,
+      id: 42,
+      tokenLookupHash: hashed.tokenLookupHash,
+      tokenHash: hashed.tokenHash,
+      tokenSalt: hashed.tokenSalt,
       expiresAt: new Date(Date.now() - 60_000),
       authAccount: {
         id: 1,
@@ -136,8 +154,9 @@ describe('AuthService unit', () => {
       InvalidRefreshTokenError
     );
     expect(prismaMock.refreshToken.delete).toHaveBeenCalledWith({
-      where: { token: expiredToken },
+      where: { id: 42 },
     });
+    expect(computeLookupHash(expiredToken, pepper)).toBe(hashed.tokenLookupHash);
   });
 
   it('logout: бросает ValidationError при пустом токене', async () => {

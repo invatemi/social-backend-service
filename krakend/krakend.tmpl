@@ -24,6 +24,7 @@
       "input_headers": [
         "*"
       ],
+      "output_encoding": "no-op",
       "backend": [
         {
           "host": [
@@ -101,14 +102,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -158,14 +159,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -191,14 +192,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -224,14 +225,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -277,14 +278,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -313,14 +314,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -345,14 +346,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -433,14 +434,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -465,14 +466,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -501,14 +502,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -533,14 +534,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -565,14 +566,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -633,14 +634,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -681,14 +682,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -713,14 +714,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -749,14 +750,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -785,14 +786,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -817,14 +818,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -849,14 +850,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -881,14 +882,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -926,14 +927,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -974,14 +975,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1009,14 +1010,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1057,14 +1058,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1089,14 +1090,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1121,14 +1122,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1153,14 +1154,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1185,14 +1186,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1233,14 +1234,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1265,14 +1266,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1297,14 +1298,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1403,14 +1404,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1435,14 +1436,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     },
@@ -1467,14 +1468,14 @@
         "auth/validator": {
           "alg": "HS256",
           "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
-          "disable_jwk_security": true,
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
           "cache": true,
-          "roles_key": "role",
           "propagate_claims": [
             ["userId", "x-user-id"],
             ["role", "x-user-role"]
-          ],
-          "roles": ["admin", "moderator", "user", "guest"]
+          ]
         }
       }
     }
@@ -1493,10 +1494,10 @@
         {{- end -}}
       ],
       "allow_methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      "allow_headers": ["Origin", "Authorization", "Content-Type", "Accept"],
-      "expose_headers": ["Content-Length"],
+      "allow_headers": ["Origin", "Authorization", "Content-Type", "Accept", "Cookie"],
+      "expose_headers": ["Content-Length", "Set-Cookie"],
       "max_age": "12h",
-      "allow_credentials": false
+      "allow_credentials": true
     }
   }
 }
