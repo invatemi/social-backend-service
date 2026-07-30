@@ -25,8 +25,13 @@ import {
 } from '../routes/friends/friends.errors';
 import { PaginationValidationError } from '../utils/pagination';
 import { AvatarUploadConfigurationError } from '../routes/profile/profile.service';
-import { MailConfigurationError } from '../lib/mailer';
+import { MailConfigurationError, MailSendError } from '../lib/mailer';
 import { PasswordError } from '../routes/password/password.errors';
+import {
+  PhotoCommentNotFoundError,
+  PhotoNotFoundError,
+} from '../routes/photos/photos.errors';
+
 
 /** Преобразует ошибки user-домена в HTTP-ответы. */
 export const errorHandler = (
@@ -124,11 +129,21 @@ export const errorHandler = (
     errorCode = 'CONFIGURATION_ERROR';
     errorMessage = err.message;
   }
+  else if (err instanceof MailSendError) {
+    statusCode = 502;
+    errorCode = 'MAIL_SEND_FAILED';
+    errorMessage = err.message;
+  }
   else if (err instanceof PasswordError) {
     statusCode = err.code === 'USER_NOT_FOUND' ? 404 : 400;
     errorCode = err.code;
     errorMessage = err.message;
     errorField = err.field;
+  }
+  else if (err instanceof PhotoNotFoundError || err instanceof PhotoCommentNotFoundError) {
+    statusCode = 404;
+    errorCode = err.code;
+    errorMessage = err.message;
   }
   //Обработка базовых классов
   else if (err instanceof UserError) {

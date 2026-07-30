@@ -19,8 +19,11 @@ import {
   friendsRoutes,
   profileRoutes,
   passwordRoutes,
+  userPhotosRouter,
+  photosRouter,
 } from './routes';
 import { registerUserRegisteredConsumer } from './consumers';
+
 
 loadEnv();
 const config = getConfig();
@@ -48,6 +51,8 @@ const attachProfileContext = (req: express.Request, _res: express.Response, next
 app.use('/api/followers', attachUserContext, followersRoutes);
 app.use('/api/friends', attachUserContext, friendsRoutes);
 app.use('/api/users', attachProfileContext, passwordRoutes);
+app.use('/api/users', attachProfileContext, userPhotosRouter);
+app.use('/api/photos', attachProfileContext, photosRouter);
 app.use('/api/users', attachProfileContext, profileRoutes);
 
 app.get('/health', createHealthHandler(serviceName, () => database.isHealthy()));

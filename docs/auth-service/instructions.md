@@ -6,10 +6,12 @@
 
 ```bash
 # из корня social-backend-service
-cp .env.example .env
-# заполнить JWT_SECRET, SERVICE_JWT_SECRET, RABBITMQ_*, пароли БД
-docker compose up -d social-auth-service rabbitmq auth-db
+.\scripts\setup-env.ps1   # или sh scripts/setup-env.sh
+docker compose up -d --build
+.\scripts\bootstrap-db.ps1   # migrate + seed roles
 ```
+
+Пользователь RabbitMQ задаётся в `rabbitmq/definitions.json` (при `load_definitions` переменные `RABBITMQ_DEFAULT_*` сами пользователя не создают).
 
 ### Standalone
 
@@ -18,6 +20,7 @@ cd services/auth-service
 cp .env.example .env
 npm install
 npx prisma migrate deploy
+# seed roles в auth_db (id=3 = user)
 npm run dev
 ```
 

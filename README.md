@@ -25,7 +25,7 @@
                     │   Frontend      │
                     │  (React/Vite)   │
                     └────────┬────────┘
-                             │ HTTP :8080
+                             │ HTTP :8088 (host) → :8080 (container)
                     ┌────────▼────────┐
                     │    KrakenD      │  JWT validation, CORS, routing
                     │  API Gateway    │
@@ -66,7 +66,9 @@ social-backend-service/
 ├── docker-compose.yml           # Оркестрация всех сервисов
 ├── scripts/
 │   ├── setup-env.ps1            # Инициализация .env (Windows)
-│   └── setup-env.sh             # Инициализация .env (Linux/macOS)
+│   ├── setup-env.sh             # Инициализация .env (Linux/macOS)
+│   ├── bootstrap-db.ps1         # migrate + seed roles после compose up
+│   └── bootstrap-db.sh
 │
 ├── krakend/                     # API Gateway
 │   ├── krakend.json             # Маршруты (исходник)
@@ -102,6 +104,19 @@ social-backend-service/
 - Docker Desktop 4.x+ и Docker Compose v2
 - Node.js 18+ (для локальной разработки отдельных сервисов)
 
+### Совместимость с frontend
+
+Локальный стек рассчитан на [social-network-frontend-react](https://github.com/invatemi/social-network-frontend-react):
+
+| Компонент | URL |
+|-----------|-----|
+| Frontend (Vite) | `http://localhost:5173` → `CORS_ORIGINS` |
+| HTTP API (KrakenD host) | `http://localhost:8088` → `VITE_API_URL` |
+| WebSocket | `http://localhost:3005` → `VITE_WS_URL` |
+| MinIO avatars | `http://localhost:9000` |
+
+`KRAKEND_EXTERNAL_PORT=8088` по умолчанию (host `8080` часто занят Apache/`httpd`). Внутри Docker gateway слушает `8080`.
+
 ### 1. Настройка переменных окружения
 
 ```powershell
@@ -114,38 +129,54 @@ social-backend-service/
 sh scripts/setup-env.sh
 ```
 
-Откройте `.env` в корне проекта и замените все значения `replace-with-*` на свои секреты:
+`.env.example` содержит готовые **local-dev** секреты (достаточно для `docker compose up`). Для prod замените пароли/JWT/S3. `SMTP_*` нужны только для сброса пароля по почте.
 
 | Переменная | Описание |
 |------------|----------|
 | `DB_PASSWORD` | Пароль PostgreSQL (общий для всех БД в dev) |
 | `JWT_SECRET` | Секрет JWT, минимум 32 символа |
-| `RABBITMQ_DEFAULT_USER` / `PASS` | Учётные данные RabbitMQ |
+| `RABBITMQ_DEFAULT_USER` / `PASS` | Должны совпадать с user в `rabbitmq/definitions.json` |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | Ключи MinIO |
 | `SMTP_*` | Настройки почты (смена пароля) |
-| `CORS_ORIGINS` | URL фронтенда через запятую |
+| `CORS_ORIGINS` | URL фронтенда через запятую (`http://localhost:5173`) |
 
 ### 2. Запуск через Docker Compose
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 С observability-стеком (Elasticsearch + Kibana + Filebeat):
 
 ```bash
-docker compose --profile observability up --build
+docker compose --profile observability up --build -d
 ```
 
-### 3. Проверка
+### 3. Миграции и seed ролей
+
+Контейнеры **не** применяют Prisma migrate при старте. После первого `up`:
+
+```powershell
+.\scripts\bootstrap-db.ps1
+```
+
+```bash
+sh scripts/bootstrap-db.sh
+```
+
+Скрипт: `prisma migrate deploy` во всех сервисах + seed таблицы `roles` в `auth_db` и `users_db` (без ролей регистрация/`user.registered` падают по FK).
+
+### 4. Проверка
 
 | Сервис | URL |
 |--------|-----|
-| API Gateway | http://127.0.0.1:8080 |
-| Auth health | http://127.0.0.1:8080/api/auth/health |
+| API Gateway | http://127.0.0.1:8088 |
+| Auth health | http://127.0.0.1:8088/api/auth/health |
 | MinIO Console | http://127.0.0.1:9001 |
-| Notifications WebSocket | ws://127.0.0.1:3005 |
+| Notifications WebSocket | http://127.0.0.1:3005 |
 | Kibana (с профилем) | http://127.0.0.1:5601 |
+
+Краткий smoke: health всех `/api/*/health` → `POST /api/auth/register` → `GET /api/users/me` с Bearer token → `POST /api/posts`.
 
 ## Конфигурация
 
@@ -181,7 +212,7 @@ npm run dev
 
 ## API
 
-Публичный контракт описан в `openapi/social-backend.openapi.yaml`. Все клиентские запросы идут через KrakenD на порту `8080`.
+Публичный контракт описан в `openapi/social-backend.openapi.yaml`. Все клиентские запросы идут через KrakenD (host-порт `KRAKEND_EXTERNAL_PORT`, по умолчанию `8088`).
 
 Основные группы эндпоинтов:
 - `/api/auth/*` — регистрация, login, refresh, logout

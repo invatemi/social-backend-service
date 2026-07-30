@@ -171,6 +171,230 @@
       }
     },
     {
+      "endpoint": "/api/users/me/photos",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/users/me/photos"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/users/{id}/photos",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/users/{id}/photos"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/photos/{id}",
+      "method": "DELETE",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/photos/{id}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/photos/{id}/like",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/photos/{id}/like"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/photos/{id}/comments",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/photos/{id}/comments"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/photos/{id}/comments",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/photos/{id}/comments"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/photos/{id}/comments/{commentId}",
+      "method": "DELETE",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-user-service:3002"
+          ],
+          "url_pattern": "/api/photos/{id}/comments/{commentId}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
       "endpoint": "/api/users/me/password/request",
       "method": "POST",
       "input_headers": [
@@ -955,6 +1179,42 @@
       ]
     },
     {
+      "endpoint": "/api/posts/me/image-upload-url",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "input_query_strings": [
+        "contentType",
+        "fileName"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-post-service:3003"
+          ],
+          "url_pattern": "/api/posts/me/image-upload-url"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
       "endpoint": "/api/posts/me",
       "method": "GET",
       "input_headers": [
@@ -1490,7 +1750,7 @@
         {{- $origins := splitList "," (env "CORS_ORIGINS" | default "http://localhost:5173") -}}
         {{- range $index, $origin := $origins -}}
         {{- if $index }},{{ end -}}
-        {{ trim $origin " " | quote }}
+        {{ trim $origin | quote }}
         {{- end -}}
       ],
       "allow_methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

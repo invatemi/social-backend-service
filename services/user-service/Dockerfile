@@ -5,6 +5,9 @@ ENV PORT=${SERVICE_PORT}
 
 WORKDIR /app
 
+# prebuild (package.json) resolves ../../scripts and ../shared from repo root layout
+COPY shared/security /shared/security
+COPY scripts/copy-shared-security.cjs /scripts/copy-shared-security.cjs
 COPY shared/security ./shared/security
 COPY services/user-service/package*.json ./
 RUN npm config set fetch-retries 5 \
@@ -17,7 +20,9 @@ COPY services/user-service/prisma.config.ts ./prisma.config.ts
 RUN npx prisma generate
 
 COPY services/user-service/ .
-RUN npm run build
+RUN npm run build \
+  && mkdir -p dist/src \
+  && cp -r src/generated dist/src/generated
 
 EXPOSE ${SERVICE_PORT}
 

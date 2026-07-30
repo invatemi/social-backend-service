@@ -86,6 +86,69 @@
       }]
     },
     {
+      "endpoint": "/api/users/me/photos",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/users/me/photos"
+      }]
+    },
+    {
+      "endpoint": "/api/users/{id}/photos",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/users/{id}/photos"
+      }]
+    },
+    {
+      "endpoint": "/api/photos/{id}",
+      "method": "DELETE",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/photos/{id}"
+      }]
+    },
+    {
+      "endpoint": "/api/photos/{id}/like",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/photos/{id}/like"
+      }]
+    },
+    {
+      "endpoint": "/api/photos/{id}/comments",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/photos/{id}/comments"
+      }]
+    },
+    {
+      "endpoint": "/api/photos/{id}/comments",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/photos/{id}/comments"
+      }]
+    },
+    {
+      "endpoint": "/api/photos/{id}/comments/{commentId}",
+      "method": "DELETE",
+      "input_headers": ["Authorization", "Content-Type"],
+      "backend": [{
+        "host": ["http://social-user-service:3002"],
+        "url_pattern": "/api/photos/{id}/comments/{commentId}"
+      }]
+    },
+    {
       "endpoint": "/api/users/me/password/request",
       "method": "POST",
       "input_headers": ["Authorization", "Content-Type"],
@@ -354,6 +417,16 @@
       "backend": [{
         "host": ["http://social-post-service:3003"],
         "url_pattern": "/api/posts"
+      }]
+    },
+    {
+      "endpoint": "/api/posts/me/image-upload-url",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type"],
+      "input_query_strings": ["contentType", "fileName"],
+      "backend": [{
+        "host": ["http://social-post-service:3003"],
+        "url_pattern": "/api/posts/me/image-upload-url"
       }]
     },
     {

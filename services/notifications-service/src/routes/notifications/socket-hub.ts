@@ -154,6 +154,24 @@ export const initSocketHub = (server: http.Server): Server => {
       }
     });
 
+    socket.on('presence:check', (payload: unknown) => {
+      const rawIds = Array.isArray(payload)
+        ? payload
+        : payload && typeof payload === 'object' && Array.isArray((payload as { userIds?: unknown }).userIds)
+          ? (payload as { userIds: unknown[] }).userIds
+          : [];
+
+      const statuses: Record<string, boolean> = {};
+      for (const value of rawIds) {
+        const id = Number(value);
+        if (Number.isInteger(id) && id > 0) {
+          statuses[String(id)] = isUserOnline(id);
+        }
+      }
+
+      socket.emit('presence:status', { statuses });
+    });
+
     socket.on('disconnect', () => {
       const wasOnline = isUserOnline(userId);
       setUserOffline(userId);

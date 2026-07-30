@@ -5,6 +5,23 @@
       "name": "/"
     }
   ],
+  "users": [
+    {
+      "name": "social-rabbit",
+      "password_hash": "g2daHZg/Rbrr11YXdpiF1va0QnDucU0CsjFSgwZtojedTb7J",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ["administrator"]
+    }
+  ],
+  "permissions": [
+    {
+      "user": "social-rabbit",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
   "exchanges": [
     {
       "name": "post.events",
@@ -163,6 +180,24 @@
     },
     {
       "name": "notifications.user.updated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.user.photo.created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.user.photo.deleted",
       "vhost": "/",
       "durable": true,
       "auto_delete": false,
@@ -330,6 +365,22 @@
       "destination": "notifications.user.updated",
       "destination_type": "queue",
       "routing_key": "user.updated",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.photo.created",
+      "destination_type": "queue",
+      "routing_key": "photo.created",
+      "arguments": {}
+    },
+    {
+      "source": "user.events",
+      "vhost": "/",
+      "destination": "notifications.user.photo.deleted",
+      "destination_type": "queue",
+      "routing_key": "photo.deleted",
       "arguments": {}
     },
     {

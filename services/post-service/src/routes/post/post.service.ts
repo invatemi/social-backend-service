@@ -1,3 +1,6 @@
+import { randomUUID } from 'crypto';
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { PrismaClient } from '../../generated/prisma';
 import { eventBus } from '../../middleware/event-bus';
 import {
@@ -45,6 +48,7 @@ export interface PostResponse {
 
 export interface EnrichedPostResponse extends PostResponse {
   author: PostAuthor;
+  isLiked?: boolean;
 }
 
 export interface PostsListResponse {
@@ -53,6 +57,20 @@ export interface PostsListResponse {
   page: number;
   pageSize: number;
   totalPages: number;
+}
+
+export interface PostImageUploadUrlInput {
+  contentType?: string;
+  fileName?: string;
+}
+
+export interface PostImageUploadUrlData {
+  uploadUrl: string;
+  publicUrl: string;
+  method: 'PUT';
+  headers: { 'Content-Type': string };
+  expiresIn: number;
+  key: string;
 }
 
 type CachedPostsListResponse = {
@@ -86,7 +104,7 @@ type PostUpdateFields = {
   updated_at: Date;
   title?: string;
   content?: string;
-  image_url?: string;
+  image_url?: string | null;
 };
 
 const postCacheKeys = {
@@ -101,6 +119,87 @@ const postCacheKeys = {
     `posts:user:${userId}:own:page:${page}:size:${pageSize}`,
 };
 
+const sanitizeFileName = (fileName: string | undefined): string => {
+  const sanitized = String(fileName ?? 'post-image')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80);
+
+  return sanitized || 'post-image';
+};
+
+const joinPublicUrl = (baseUrl: string, key: string): string => {
+  const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+  return `${baseUrl.replace(/\/+$/, '')}/${encodedKey}`;
+};
+
+const resolveUploadEndpoint = (publicBaseUrl: string, uploadEndpoint: string): string => {
+  if (uploadEndpoint) {
+    return uploadEndpoint;
+  }
+  return new URL(publicBaseUrl).origin;
+};
+
+const createS3Client = (forBrowserUpload = false): S3Client => {
+  const {
+    s3Endpoint,
+    s3PublicBaseUrl,
+    s3UploadEndpoint,
+    s3Region,
+    s3ForcePathStyle,
+    s3AccessKeyId,
+    s3SecretAccessKey,
+  } = getConfig();
+
+  const endpoint = forBrowserUpload
+    ? resolveUploadEndpoint(s3PublicBaseUrl, s3UploadEndpoint)
+    : s3Endpoint || resolveUploadEndpoint(s3PublicBaseUrl, s3UploadEndpoint);
+
+  return new S3Client({
+    region: s3Region,
+    endpoint,
+    forcePathStyle: s3ForcePathStyle,
+    credentials: {
+      accessKeyId: s3AccessKeyId,
+      secretAccessKey: s3SecretAccessKey,
+    },
+  });
+};
+
+const extractObjectKey = (url: string): string | null => {
+  try {
+    const { s3PublicBaseUrl } = getConfig();
+    const base = s3PublicBaseUrl.replace(/\/+$/, '');
+    if (!url.startsWith(base + '/')) {
+      return null;
+    }
+    return decodeURIComponent(url.slice(base.length + 1));
+  } catch {
+    return null;
+  }
+};
+
+const deleteObjectFromStorage = async (objectKey: string | null): Promise<void> => {
+  if (!objectKey) {
+    return;
+  }
+
+  try {
+    const { s3Bucket } = getConfig();
+    const client = createS3Client(false);
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: s3Bucket,
+        Key: objectKey,
+      })
+    );
+  } catch (error) {
+    console.log('[Post] Failed to delete S3 object:', error);
+  }
+};
+
 const invalidatePostLists = async (userId: number): Promise<void> => {
   await Promise.all([
     cache.delPattern('posts:feed:*'),
@@ -109,7 +208,7 @@ const invalidatePostLists = async (userId: number): Promise<void> => {
 };
 
 const publishPostEvent = async (
-  routingKey: 'post.created' | 'post.updated' | 'post.deleted',
+  routingKey: 'post.created' | 'post.updated',
   post: PostResponse
 ): Promise<void> => {
   try {
@@ -126,6 +225,18 @@ const publishPostEvent = async (
     });
   } catch (error) {
     console.log(`[EventBus] Failed to publish ${routingKey}:`, error);
+  }
+};
+
+const publishPostDeletedEvent = async (postId: number, userId: number): Promise<void> => {
+  try {
+    await eventBus.publish('post.deleted', {
+      postId,
+      userId,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.log('[EventBus] Failed to publish post.deleted:', error);
   }
 };
 
@@ -183,25 +294,7 @@ const validateTitle = (title: unknown): string | undefined => {
   return trimmed;
 };
 
-const validateContent = (content: unknown): string => {
-  if (typeof content !== 'string') {
-    throw new PostValidationError('Content must be a string', 'content');
-  }
-
-  const trimmed = content.trim();
-
-  if (trimmed.length === 0) {
-    throw new PostValidationError('Content cannot be empty', 'content');
-  }
-
-  if (trimmed.length > 10000) {
-    throw new PostValidationError('Content must be less than 10000 characters', 'content');
-  }
-
-  return trimmed;
-};
-
-const validateCreateContent = (content: unknown, imageUrl?: string): string => {
+const validateCreateContent = (content: unknown, imageUrl?: string | null): string => {
   if (content === undefined || content === null) {
     if (imageUrl) {
       return '';
@@ -241,13 +334,32 @@ const validateImageUrl = (imageUrl: unknown): string | undefined => {
   if (trimmed.length === 0) {
     return undefined;
   }
+
+  if (trimmed.startsWith('data:')) {
+    throw new PostValidationError(
+      'Inline data URLs are not allowed; upload the image first',
+      'imageUrl'
+    );
+  }
   
+  let parsed: URL;
   try {
-    new URL(trimmed);
-    return trimmed;
+    parsed = new URL(trimmed);
   } catch {
     throw new PostValidationError('Invalid image URL format', 'imageUrl');
   }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new PostValidationError('Image URL must use http or https', 'imageUrl');
+  }
+
+  const { s3PublicBaseUrl } = getConfig();
+  const base = s3PublicBaseUrl.replace(/\/+$/, '');
+  if (!trimmed.startsWith(base + '/')) {
+    throw new PostValidationError('Image URL must point to the media storage', 'imageUrl');
+  }
+
+  return trimmed;
 };
 
 const enrichPostsWithAuthors = async (posts: PostResponse[]): Promise<EnrichedPostResponse[]> => {
@@ -260,6 +372,32 @@ const enrichPostsWithAuthors = async (posts: PostResponse[]): Promise<EnrichedPo
       username: `user_${post.userId}`,
       avatarUrl: null,
     },
+  }));
+};
+
+const enrichPostsWithLikeStatus = async (
+  posts: EnrichedPostResponse[],
+  viewerUserId: number,
+  prisma: PrismaClient
+): Promise<EnrichedPostResponse[]> => {
+  if (posts.length === 0) {
+    return posts;
+  }
+
+  const postIds = posts.map((post) => post.id);
+  const likes = await prisma.likes.findMany({
+    where: {
+      id_user: viewerUserId,
+      id_post: { in: postIds },
+    },
+    select: { id_post: true },
+  });
+
+  const likedPostIds = new Set(likes.map((like) => like.id_post));
+
+  return posts.map((post) => ({
+    ...post,
+    isLiked: likedPostIds.has(post.id),
   }));
 };
 
@@ -372,9 +510,10 @@ export class PostService {
     const cacheKey = postCacheKeys.userFeed(validUserId, page, pageSize, onlyPublished);
     const cached = await cache.get<CachedPostsListResponse>(cacheKey);
     if (cached) {
+      const withAuthors = await enrichPostsWithAuthors(cached.posts);
       return {
         ...cached,
-        posts: await enrichPostsWithAuthors(cached.posts),
+        posts: await enrichPostsWithLikeStatus(withAuthors, validUserId, this.prisma),
       };
     }
 
@@ -420,9 +559,10 @@ export class PostService {
     };
 
     await cache.set(cacheKey, rawResult, getConfig().postListCacheTtlSeconds);
+    const withAuthors = await enrichPostsWithAuthors(rawResult.posts);
     return {
       ...rawResult,
-      posts: await enrichPostsWithAuthors(rawResult.posts),
+      posts: await enrichPostsWithLikeStatus(withAuthors, validUserId, this.prisma),
     };
   }
 
@@ -534,12 +674,17 @@ export class PostService {
       updateData.title = validateTitle(data.title);
     }
 
-    if (data.content !== undefined) {
-      updateData.content = validateContent(data.content);
-    }
+    const nextImageUrl =
+      data.imageUrl !== undefined ? validateImageUrl(data.imageUrl) ?? null : post.image_url;
 
     if (data.imageUrl !== undefined) {
-      updateData.image_url = validateImageUrl(data.imageUrl);
+      updateData.image_url = nextImageUrl;
+    }
+
+    if (data.content !== undefined) {
+      updateData.content = validateCreateContent(data.content, nextImageUrl);
+    } else if (data.imageUrl !== undefined && !nextImageUrl && !post.content.trim()) {
+      throw new PostValidationError('Content cannot be empty', 'content');
     }
 
     const updatedPost = await this.prisma.posts.update({
@@ -574,17 +719,59 @@ export class PostService {
       throw new PostForbiddenError('You can only delete your own posts');
     }
 
-    const deletedPost = this.formatPost(post);
+    const imageObjectKey = post.image_url ? extractObjectKey(post.image_url) : null;
+
+    await Promise.all([
+      cache.del(postCacheKeys.byId(validPostId)),
+      invalidatePostLists(validUserId),
+    ]);
+    await publishPostDeletedEvent(validPostId, validUserId);
 
     await this.prisma.posts.delete({
       where: { id_post: validPostId },
     });
 
-    await publishPostEvent('post.deleted', deletedPost);
-    await Promise.all([
-      cache.del(postCacheKeys.byId(deletedPost.id)),
-      invalidatePostLists(deletedPost.userId),
-    ]);
+    await deleteObjectFromStorage(imageObjectKey);
+  }
+
+  /** Generates a presigned S3-compatible PUT URL for post image upload. */
+  async getImageUploadUrl(
+    userId: number,
+    input: PostImageUploadUrlInput = {}
+  ): Promise<PostImageUploadUrlData> {
+    const id = validateId(userId, 'userId');
+    const contentType = input.contentType ?? 'image/jpeg';
+    if (!contentType.startsWith('image/')) {
+      throw new PostValidationError('Image content type must be an image', 'contentType');
+    }
+
+    const {
+      s3Bucket,
+      s3PublicBaseUrl,
+      s3UploadUrlTtlSeconds,
+    } = getConfig();
+    const key = `posts/${id}/${randomUUID()}-${sanitizeFileName(input.fileName)}`;
+    const client = createS3Client(true);
+
+    const command = new PutObjectCommand({
+      Bucket: s3Bucket,
+      ContentType: contentType,
+      Key: key,
+    });
+
+    const uploadUrl = await getSignedUrl(client, command, {
+      expiresIn: s3UploadUrlTtlSeconds,
+      signableHeaders: new Set(['content-type']),
+    });
+
+    return {
+      uploadUrl,
+      publicUrl: joinPublicUrl(s3PublicBaseUrl, key),
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      expiresIn: s3UploadUrlTtlSeconds,
+      key,
+    };
   }
 
   /** Publishes an owned draft post. */
@@ -687,9 +874,10 @@ export class PostService {
     const cacheKey = postCacheKeys.ownByUser(validUserId, page, pageSize);
     const cached = await cache.get<CachedPostsListResponse>(cacheKey);
     if (cached) {
+      const withAuthors = await enrichPostsWithAuthors(cached.posts);
       return {
         ...cached,
-        posts: await enrichPostsWithAuthors(cached.posts),
+        posts: await enrichPostsWithLikeStatus(withAuthors, validUserId, this.prisma),
       };
     }
 
@@ -712,9 +900,10 @@ export class PostService {
     };
 
     await cache.set(cacheKey, rawResult, getConfig().postListCacheTtlSeconds);
+    const withAuthors = await enrichPostsWithAuthors(rawResult.posts);
     return {
       ...rawResult,
-      posts: await enrichPostsWithAuthors(rawResult.posts),
+      posts: await enrichPostsWithLikeStatus(withAuthors, validUserId, this.prisma),
     };
   }
 

@@ -16,7 +16,9 @@ export type UserEventRoutingKey =
   | 'follow.created'
   | 'follow.deleted'
   | 'user.updated'
-  | 'user.registered';
+  | 'user.registered'
+  | 'photo.created'
+  | 'photo.deleted';
 
 export interface UserSummary {
   id: number;
@@ -78,6 +80,20 @@ export interface UserRegisteredPayload {
   timestamp: string;
 }
 
+export interface PhotoCreatedPayload {
+  photoId: number;
+  userId: number;
+  url: string;
+  isCurrent: boolean;
+  timestamp: string;
+}
+
+export interface PhotoDeletedPayload {
+  photoId: number;
+  userId: number;
+  timestamp: string;
+}
+
 export type UserEventPayload =
   | FriendRequestedPayload
   | FriendAcceptedPayload
@@ -85,7 +101,9 @@ export type UserEventPayload =
   | FriendStatusPayload
   | FollowPayload
   | UserUpdatedPayload
-  | UserRegisteredPayload;
+  | UserRegisteredPayload
+  | PhotoCreatedPayload
+  | PhotoDeletedPayload;
 
 export interface MessageControls {
   ack: () => void;

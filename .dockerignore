@@ -1,0 +1,11 @@
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/dist
+**/coverage
+**/.git
+**/tests
+**/*.md
+agent-transcripts
+.cursor

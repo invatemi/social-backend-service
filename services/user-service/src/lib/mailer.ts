@@ -9,10 +9,38 @@ export class MailConfigurationError extends Error {
   }
 }
 
+/** Ошибка отправки письма через SMTP. */
+export class MailSendError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MailSendError';
+  }
+}
+
 type SendMailInput = {
   to: string;
   subject: string;
   text: string;
+};
+
+const mapSmtpErrorMessage = (error: unknown): string => {
+  const raw = error instanceof Error ? error.message : String(error);
+  const lower = raw.toLowerCase();
+
+  if (
+    lower.includes('invalid login') ||
+    lower.includes('authentication') ||
+    lower.includes('535') ||
+    lower.includes('534')
+  ) {
+    return 'Не удалось авторизоваться в SMTP. Проверьте SMTP_USER и Google App Password';
+  }
+
+  if (lower.includes('enotfound') || lower.includes('econnrefused') || lower.includes('etimedout')) {
+    return 'Не удалось подключиться к SMTP-серверу. Проверьте SMTP_HOST/SMTP_PORT и сеть';
+  }
+
+  return 'Не удалось отправить письмо. Проверьте настройки SMTP';
 };
 
 /** Отправка email через SMTP. */
@@ -37,7 +65,13 @@ export class MailerService {
       secure: port === 465,
       auth: { user, pass },
     });
-    await transport.sendMail({ from, to, subject, text });
+
+    try {
+      await transport.sendMail({ from, to, subject, text });
+    } catch (error) {
+      console.log('[Mailer] Failed to send email:', error);
+      throw new MailSendError(mapSmtpErrorMessage(error));
+    }
   }
 }
 

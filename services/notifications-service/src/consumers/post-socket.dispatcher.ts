@@ -1,9 +1,9 @@
 import { fetchPostAudienceUserIds } from '../clients/user-client';
-import { publishSocketEvent, publishSocketEventToMany } from '../routes/notifications/socket-hub';
+import { publishSocketEventToMany } from '../routes/notifications/socket-hub';
 
 /** Notifies the post audience about feed changes. */
 export const dispatchPostFeedEvent = async (
-  event: 'post:created' | 'post:updated' | 'post:deleted',
+  event: 'post:created' | 'post:updated',
   data: {
     postId: number;
     userId: number;
@@ -29,6 +29,18 @@ export const dispatchPostFeedEvent = async (
     likesCount: data.likesCount ?? 0,
     commentsCount: data.commentsCount ?? 0,
     createdAt: data.timestamp,
+  });
+};
+
+/** Notifies the post audience that a post was deleted. */
+export const dispatchPostDeletedEvent = async (data: {
+  postId: number;
+  userId: number;
+  timestamp: string;
+}): Promise<void> => {
+  const recipientIds = await fetchPostAudienceUserIds(data.userId);
+  publishSocketEventToMany(recipientIds, 'post:deleted', {
+    postId: data.postId,
   });
 };
 

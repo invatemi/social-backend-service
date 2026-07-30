@@ -18,6 +18,7 @@ export interface UpdateProfileInput {
   name?: string;
   email?: string;
   avatarUrl?: string | null;
+  coverUrl?: string | null;
   bio?: string | null;
   location?: string | null;
 }
@@ -27,6 +28,7 @@ export interface UserProfileData {
   name: string;
   email: string;
   avatarUrl: string | null;
+  coverUrl: string | null;
   bio: string | null;
   location: string | null;
   createdAt: Date;
@@ -118,6 +120,7 @@ const userProfileSelect = {
   name: true,
   email: true,
   avatarUrl: true,
+  coverUrl: true,
   bio: true,
   location: true,
   createdAt: true,
@@ -347,7 +350,10 @@ export class ProfileService {
       s3SecretAccessKey,
     } = getConfig();
     const uploadEndpoint = resolveUploadEndpoint(s3PublicBaseUrl, s3UploadEndpoint);
-    const key = `avatars/${id}/${randomUUID()}-${sanitizeFileName(input.fileName)}`;
+    const keyPrefix = String(input.fileName ?? '').toLowerCase().startsWith('cover')
+      ? 'covers'
+      : 'avatars';
+    const key = `${keyPrefix}/${id}/${randomUUID()}-${sanitizeFileName(input.fileName)}`;
 
     const client = new S3Client({
       region: s3Region,
@@ -380,6 +386,84 @@ export class ProfileService {
     };
   }
 
+  /** Extracts S3 object key from a public avatar URL when possible. */
+  private extractObjectKey(url: string): string | null {
+    try {
+      const { s3PublicBaseUrl } = getConfig();
+      const base = s3PublicBaseUrl.replace(/\/+$/, '');
+      if (!url.startsWith(base + '/')) {
+        return null;
+      }
+      return decodeURIComponent(url.slice(base.length + 1));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Syncs avatar history gallery when avatarUrl changes. */
+  private async syncAvatarPhotoHistory(
+    userId: number,
+    previousAvatarUrl: string | null,
+    nextAvatarUrl: string | null | undefined
+  ): Promise<number | null> {
+    if (nextAvatarUrl === undefined) {
+      return null;
+    }
+
+    if (nextAvatarUrl === null) {
+      await this.prisma.photo.updateMany({
+        where: { userId, isCurrent: true },
+        data: { isCurrent: false },
+      });
+      return null;
+    }
+
+    if (nextAvatarUrl === previousAvatarUrl) {
+      return null;
+    }
+
+    if (previousAvatarUrl) {
+      await this.prisma.photo.upsert({
+        where: {
+          userId_url: { userId, url: previousAvatarUrl },
+        },
+        create: {
+          userId,
+          url: previousAvatarUrl,
+          objectKey: this.extractObjectKey(previousAvatarUrl),
+          isCurrent: false,
+        },
+        update: {
+          isCurrent: false,
+        },
+      });
+    }
+
+    await this.prisma.photo.updateMany({
+      where: { userId, isCurrent: true },
+      data: { isCurrent: false },
+    });
+
+    const photo = await this.prisma.photo.upsert({
+      where: {
+        userId_url: { userId, url: nextAvatarUrl },
+      },
+      create: {
+        userId,
+        url: nextAvatarUrl,
+        objectKey: this.extractObjectKey(nextAvatarUrl),
+        isCurrent: true,
+      },
+      update: {
+        isCurrent: true,
+        objectKey: this.extractObjectKey(nextAvatarUrl),
+      },
+      select: { id: true },
+    });
+
+    return photo.id;
+  }
+
   /** Updates profile fields and publishes a user.updated event. */
   async updateProfile(userId: number, input: UpdateProfileInput) {
     const id = validateUserId(userId);
@@ -393,7 +477,7 @@ export class ProfileService {
 
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, avatarUrl: true },
     });
 
     if (!user) {
@@ -411,10 +495,16 @@ export class ProfileService {
         name: true,
         email: true,
         avatarUrl: true,
+        coverUrl: true,
         bio: true,
         location: true,
       },
     });
+
+    let createdPhotoId: number | null = null;
+    if (input.avatarUrl !== undefined) {
+      createdPhotoId = await this.syncAvatarPhotoHistory(id, user.avatarUrl, input.avatarUrl);
+    }
 
     await invalidateUserProfileCache(id);
 
@@ -427,6 +517,20 @@ export class ProfileService {
       });
     } catch (error) {
       console.log('[EventBus] Failed to publish user.updated:', error);
+    }
+
+    if (createdPhotoId != null && updatedUser.avatarUrl) {
+      try {
+        await eventBus.publish('photo.created', {
+          photoId: createdPhotoId,
+          userId: updatedUser.id,
+          url: updatedUser.avatarUrl,
+          isCurrent: true,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.log('[EventBus] Failed to publish photo.created:', error);
+      }
     }
 
     return { user: updatedUser, changedFields };

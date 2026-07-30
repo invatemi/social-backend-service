@@ -3,8 +3,11 @@
 ## Локальный запуск
 
 ```bash
+# из корня: docker compose up -d --build && .\scripts\bootstrap-db.ps1
 docker compose up -d social-user-service user-db auth-db redis rabbitmq minio
 ```
+
+После migrate нужна таблица `roles` (FK на `role_id=3`). `bootstrap-db.ps1` / `.sh` сидирует роли в `users_db` и `auth_db`. Без seed consumer `user.registered` падает с `ForeignKeyConstraintViolation`.
 
 Standalone:
 

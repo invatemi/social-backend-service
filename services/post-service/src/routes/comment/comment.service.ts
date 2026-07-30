@@ -1,5 +1,6 @@
 import type { PrismaClient } from '../../generated/prisma';
 import { eventBus } from '../../middleware/event-bus';
+import { fetchAuthorsByIds, type PostAuthor } from '../../clients/user-client';
 import {
   ValidationError,
   CommentNotFoundError,
@@ -24,7 +25,16 @@ export interface CommentResponse {
   userId: number;
   content: string;
   createdAt: Date;
+  author: PostAuthor;
 }
+
+type CommentRecord = {
+  id: number;
+  postId: number;
+  userId: number;
+  content: string;
+  createdAt: Date;
+};
 
 export interface CommentsListResponse {
   comments: CommentResponse[];
@@ -62,7 +72,7 @@ const validateContent = (content: unknown): string => {
 };
 
 // Преобразует snake_case поля из БД в camelCase для API.
-const formatComment = (comment: any): CommentResponse => ({
+const formatComment = (comment: any): CommentRecord => ({
   id: comment.id_comment,
   postId: comment.id_post,
   userId: comment.id_user,
@@ -70,9 +80,31 @@ const formatComment = (comment: any): CommentResponse => ({
   createdAt: comment.created_at,
 });
 
+const fallbackAuthor = (userId: number): PostAuthor => ({
+  id: userId,
+  username: `user_${userId}`,
+  avatarUrl: null,
+});
+
+const enrichCommentsWithAuthors = async (
+  comments: CommentRecord[]
+): Promise<CommentResponse[]> => {
+  const authorsMap = await fetchAuthorsByIds(comments.map((comment) => comment.userId));
+
+  return comments.map((comment) => ({
+    ...comment,
+    author: authorsMap.get(comment.userId) ?? fallbackAuthor(comment.userId),
+  }));
+};
+
+const enrichCommentWithAuthor = async (comment: CommentRecord): Promise<CommentResponse> => {
+  const [enriched] = await enrichCommentsWithAuthors([comment]);
+  return enriched;
+};
+
 const publishCommentEvent = async (
   routingKey: 'comment.created' | 'comment.updated' | 'comment.deleted',
-  comment: CommentResponse,
+  comment: CommentRecord,
   postAuthorId: number,
   commentsCount: number
 ): Promise<void> => {
@@ -143,7 +175,7 @@ export class CommentService {
       commentsCount
     );
 
-    return formattedComment;
+    return enrichCommentWithAuthor(formattedComment);
   }
 
   /** Returns comments for a post. */
@@ -166,9 +198,11 @@ export class CommentService {
       orderBy: { created_at: 'desc' },
     });
 
+    const formatted = comments.map(formatComment);
+
     return {
-      comments: comments.map(formatComment),
-      total: comments.length,
+      comments: await enrichCommentsWithAuthors(formatted),
+      total: formatted.length,
       post: { id: validPostId },
     };
   }
@@ -185,7 +219,7 @@ export class CommentService {
       throw new CommentNotFoundError(validCommentId);
     }
 
-    return formatComment(comment);
+    return enrichCommentWithAuthor(formatComment(comment));
   }
 
   /** Updates an owned comment. */
@@ -233,7 +267,7 @@ export class CommentService {
       );
     }
 
-    return formattedComment;
+    return enrichCommentWithAuthor(formattedComment);
   }
 
   /** Deletes an owned comment and decrements the post comment count. */

@@ -4,7 +4,8 @@ import { getConfig } from '../config/env';
 import { eventBus } from '../middleware/event-bus';
 import { NotificationsService } from '../routes/notifications/notifications.service';
 import { mapFriendStatusToSseEvent } from '../routes/notifications/sse-event-mapper';
-import { publishSocketEvent } from '../routes/notifications/socket-hub';
+import { publishSocketEvent, publishSocketEventToMany } from '../routes/notifications/socket-hub';
+import { fetchPostAudienceUserIds } from '../clients/user-client';
 
 const userSummarySchema = z.object({
   id: z.number().int().positive(),
@@ -55,6 +56,20 @@ const userUpdatedSchema = z.object({
     bio: z.string().nullable().optional(),
     location: z.string().nullable().optional(),
   }),
+  timestamp: z.string().datetime(),
+});
+
+const photoCreatedSchema = z.object({
+  photoId: z.number().int().positive(),
+  userId: z.number().int().positive(),
+  url: z.string().min(1),
+  isCurrent: z.boolean(),
+  timestamp: z.string().datetime(),
+});
+
+const photoDeletedSchema = z.object({
+  photoId: z.number().int().positive(),
+  userId: z.number().int().positive(),
   timestamp: z.string().datetime(),
 });
 
@@ -111,6 +126,20 @@ export const registerUserEventConsumers = async (
           title: 'Friend request accepted',
           body: `${event.toUser.name} accepted your friend request`,
           payload: event,
+        });
+
+        // Эфемерное событие accepter'у (DB notification уже ушла requester'у)
+        publishSocketEvent(event.toUser.id, 'notification:friend_accepted', {
+          id: event.requestId,
+          type: 'friend_accepted',
+          fromUser: {
+            id: event.fromUser.id,
+            username: event.fromUser.name,
+            avatarUrl: event.fromUser.avatarUrl ?? null,
+          },
+          toUser: { id: event.toUser.id },
+          createdAt: event.timestamp,
+          status: 'accepted',
         });
 
         ack();
@@ -271,6 +300,16 @@ export const registerUserEventConsumers = async (
           payload: event,
         });
 
+        const audienceIds = await fetchPostAudienceUserIds(event.userId);
+        const recipientIds = [...new Set([...audienceIds, event.userId])];
+        publishSocketEventToMany(recipientIds, 'user:profile_updated', {
+          userId: event.userId,
+          username: event.user.name,
+          avatarUrl: event.user.avatarUrl ?? null,
+          changedFields: event.changedFields,
+          createdAt: event.timestamp,
+        });
+
         ack();
       } catch (error) {
         console.log('[Consumer:user.updated] Failed to process message:', error);
@@ -280,6 +319,59 @@ export const registerUserEventConsumers = async (
     {
       exchangeName: userEventsExchange,
       routingKey: 'user.updated',
+    }
+  );
+
+  await eventBus.subscribe(
+    queues.photoCreated,
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(photoCreatedSchema, message.content);
+        const audienceIds = await fetchPostAudienceUserIds(event.userId);
+        const recipientIds = [...new Set([...audienceIds, event.userId])];
+
+        publishSocketEventToMany(recipientIds, 'photo:created', {
+          photoId: event.photoId,
+          userId: event.userId,
+          url: event.url,
+          isCurrent: event.isCurrent,
+          createdAt: event.timestamp,
+        });
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:photo.created] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: userEventsExchange,
+      routingKey: 'photo.created',
+    }
+  );
+
+  await eventBus.subscribe(
+    queues.photoDeleted,
+    async (message, { ack, nack }) => {
+      try {
+        const event = parseMessage(photoDeletedSchema, message.content);
+        const audienceIds = await fetchPostAudienceUserIds(event.userId);
+        const recipientIds = [...new Set([...audienceIds, event.userId])];
+
+        publishSocketEventToMany(recipientIds, 'photo:deleted', {
+          photoId: event.photoId,
+          userId: event.userId,
+        });
+
+        ack();
+      } catch (error) {
+        console.log('[Consumer:photo.deleted] Failed to process message:', error);
+        nack(false);
+      }
+    },
+    {
+      exchangeName: userEventsExchange,
+      routingKey: 'photo.deleted',
     }
   );
 };

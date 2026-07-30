@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
 import {
   CommentError,
   ValidationError as CommentValidationError,
@@ -30,15 +31,21 @@ export const errorHandler = (
 
   let errorCode = 'UNKNOWN_ERROR';
   let errorMessage = 'An error occurred';
-  let errorField = null;
+  let errorField: string | null = null;
   let statusCode = 500;
 
+  if (err instanceof ZodError) {
+    statusCode = 400;
+    errorCode = 'VALIDATION_ERROR';
+    errorMessage = err.issues[0]?.message ?? 'Invalid request data';
+    errorField = err.issues[0]?.path.join('.') || null;
+  }
   // ==================== COMMENT ERRORS ====================
-  if (err instanceof CommentValidationError) {
+  else if (err instanceof CommentValidationError) {
     statusCode = 400;
     errorCode = 'VALIDATION_ERROR';
     errorMessage = err.message;
-    errorField = err.field;
+    errorField = err.field ?? null;
   } else if (err instanceof CommentNotFoundError) {
     statusCode = 404;
     errorCode = 'COMMENT_NOT_FOUND';
@@ -66,7 +73,7 @@ export const errorHandler = (
     statusCode = 400;
     errorCode = 'VALIDATION_ERROR';
     errorMessage = err.message;
-    errorField = err.field;
+    errorField = err.field ?? null;
   } else if (err instanceof PostNotFoundError) {
     statusCode = 404;
     errorCode = 'POST_NOT_FOUND';

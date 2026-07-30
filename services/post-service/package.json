@@ -8,7 +8,7 @@
     "pretest": "node ../../scripts/copy-shared-security.cjs",
     "dev": "ts-node-dev --inspect=0.0.0.0:9229 --respawn --transpile-only src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "node dist/src/index.js",
     "test": "jest --runInBand --coverage",
     "test:watch": "jest --watch"
   },
@@ -24,6 +24,8 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1098.0",
+    "@aws-sdk/s3-request-presigner": "^3.1098.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "7.8.0",
     "amqplib": "^2.0.1",
@@ -35,17 +37,17 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "@types/supertest": "^6.0.3",
-    "jest": "^30.2.0",
     "@types/amqplib": "^0.10.8",
     "@types/bcrypt": "^6.0.0",
     "@types/dotenv": "^6.1.1",
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.41",
     "@types/pg": "^8.20.0",
+    "@types/supertest": "^6.0.3",
     "dotenv": "^17.4.2",
+    "jest": "^30.2.0",
     "nodemon": "^3.1.14",
     "prisma": "7.8.0",
     "supertest": "^7.1.4",

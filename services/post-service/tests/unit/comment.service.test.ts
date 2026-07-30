@@ -5,6 +5,16 @@ jest.mock('../../src/middleware/event-bus', () => ({
   eventBus: { publish: jest.fn() },
 }));
 
+jest.mock('../../src/clients/user-client', () => ({
+  fetchAuthorsByIds: jest.fn(async (ids: number[]) => {
+    const map = new Map<number, { id: number; username: string; avatarUrl: string | null }>();
+    ids.forEach((id) => {
+      map.set(id, { id, username: `user_${id}`, avatarUrl: null });
+    });
+    return map;
+  }),
+}));
+
 describe('CommentService unit', () => {
   const prismaMock = {
     posts: {
@@ -50,6 +60,7 @@ describe('CommentService unit', () => {
 
     expect(result.id).toBe(5);
     expect(result.content).toBe('hello');
+    expect(result.author).toEqual({ id: 2, username: 'user_2', avatarUrl: null });
   });
 
   it('updateComment: validation edge-case для пустого content', async () => {

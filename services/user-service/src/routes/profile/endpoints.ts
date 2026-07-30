@@ -13,6 +13,7 @@ const updateProfileSchema = z
     name: z.string().trim().min(1).max(30).optional(),
     email: z.string().trim().email().max(100).optional(),
     avatarUrl: z.string().trim().url().nullable().optional(),
+    coverUrl: z.string().trim().url().nullable().optional(),
     bio: z.string().trim().max(500).nullable().optional(),
     location: z.string().trim().max(100).nullable().optional(),
   })

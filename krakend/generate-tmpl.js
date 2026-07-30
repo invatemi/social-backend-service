@@ -55,7 +55,7 @@ const corsBlock = `{
         {{- $origins := splitList "," (env "CORS_ORIGINS" | default "http://localhost:5173") -}}
         {{- range $index, $origin := $origins -}}
         {{- if $index }},{{ end -}}
-        {{ trim $origin " " | quote }}
+        {{ trim $origin | quote }}
         {{- end -}}
       ],
       "allow_methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

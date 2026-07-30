@@ -17,7 +17,9 @@ COPY services/auth-service/prisma.config.ts ./prisma.config.ts
 RUN npx prisma generate
 
 COPY services/auth-service/ .
-RUN npm run build
+RUN npm run build \
+  && mkdir -p dist/src \
+  && cp -r src/generated dist/src/generated
 
 EXPOSE ${SERVICE_PORT}
 

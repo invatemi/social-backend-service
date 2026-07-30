@@ -40,6 +40,12 @@ export interface PostEventPayload {
   timestamp: string;
 }
 
+export interface PostDeletedEventPayload {
+  postId: number;
+  userId: number;
+  timestamp: string;
+}
+
 export interface PostLikedEventPayload {
   postId: number;
   userId: number;
@@ -49,7 +55,11 @@ export interface PostLikedEventPayload {
   timestamp: string;
 }
 
-export type EventPayload = CommentEventPayload | PostEventPayload | PostLikedEventPayload;
+export type EventPayload =
+  | CommentEventPayload
+  | PostEventPayload
+  | PostDeletedEventPayload
+  | PostLikedEventPayload;
 
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, delayMs));

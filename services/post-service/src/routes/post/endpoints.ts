@@ -1,11 +1,40 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import type { PrismaClient } from '../../generated/prisma';
 import { PostService } from './post.service';
 import { KrakenDRequest, krakendAuthMiddleware } from '../../middleware/krakend-auth';
 
 const router = Router();
 
+const imageUploadUrlQuerySchema = z
+  .object({
+    contentType: z.string().trim().startsWith('image/').max(100).optional(),
+    fileName: z.string().trim().max(120).optional(),
+  })
+  .strict();
+
 // ==================== ЗАЩИЩЁННЫЕ ЭНДПОИНТЫ ====================
+
+// Presigned URL для загрузки изображения поста
+router.get(
+  '/me/image-upload-url',
+  krakendAuthMiddleware,
+  async (req: KrakenDRequest, res: Response, next: NextFunction) => {
+    try {
+      const prisma = (req as any).prisma as PrismaClient;
+      const postService = new PostService(prisma);
+      const input = imageUploadUrlQuerySchema.parse(req.query);
+      const result = await postService.getImageUploadUrl(req.user!.userId, input);
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 // Создать пост
 router.post(

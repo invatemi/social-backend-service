@@ -63,6 +63,15 @@ export interface PostServiceConfig {
   rabbitmqConnectMaxAttempts: number;
   rabbitmqConnectRetryDelayMs: number;
   rabbitmqConnectMaxRetryDelayMs: number;
+  s3Endpoint: string;
+  s3Region: string;
+  s3Bucket: string;
+  s3AccessKeyId: string;
+  s3SecretAccessKey: string;
+  s3PublicBaseUrl: string;
+  s3UploadEndpoint: string;
+  s3UploadUrlTtlSeconds: number;
+  s3ForcePathStyle: boolean;
 }
 
 let configCache: PostServiceConfig | null = null;
@@ -95,6 +104,15 @@ export const getConfig = (): PostServiceConfig => {
       rabbitmqConnectMaxAttempts: requirePositiveInt('RABBITMQ_CONNECT_MAX_ATTEMPTS'),
       rabbitmqConnectRetryDelayMs: requirePositiveInt('RABBITMQ_CONNECT_RETRY_DELAY_MS'),
       rabbitmqConnectMaxRetryDelayMs: requirePositiveInt('RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS'),
+      s3Endpoint: requireEnv('S3_ENDPOINT'),
+      s3Region: requireEnv('S3_REGION'),
+      s3Bucket: requireEnv('S3_BUCKET'),
+      s3AccessKeyId: requireEnv('S3_ACCESS_KEY_ID'),
+      s3SecretAccessKey: requireEnv('S3_SECRET_ACCESS_KEY'),
+      s3PublicBaseUrl: requireEnv('S3_PUBLIC_BASE_URL'),
+      s3UploadEndpoint: requireEnv('S3_UPLOAD_ENDPOINT'),
+      s3UploadUrlTtlSeconds: requirePositiveInt('S3_UPLOAD_URL_TTL_SECONDS'),
+      s3ForcePathStyle: requireEnv('S3_FORCE_PATH_STYLE') === 'true',
     };
   }
 

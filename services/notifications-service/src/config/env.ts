@@ -79,6 +79,8 @@ export interface NotificationQueuesConfig {
   followCreated: string;
   followDeleted: string;
   userUpdated: string;
+  photoCreated: string;
+  photoDeleted: string;
 }
 
 export interface NotificationsServiceConfig {
@@ -156,6 +158,8 @@ export const getConfig = (): NotificationsServiceConfig => {
         followCreated: requireEnv('QUEUE_FOLLOW_CREATED'),
         followDeleted: requireEnv('QUEUE_FOLLOW_DELETED'),
         userUpdated: requireEnv('QUEUE_USER_UPDATED'),
+        photoCreated: requireEnv('QUEUE_PHOTO_CREATED'),
+        photoDeleted: requireEnv('QUEUE_PHOTO_DELETED'),
       },
     };
   }

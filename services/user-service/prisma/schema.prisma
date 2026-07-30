@@ -12,6 +12,7 @@ model User {
   name      String   @db.VarChar(30) @map("name_user")
   email     String   @unique @db.VarChar(100)
   avatarUrl String?  @map("avatar_url")
+  coverUrl  String?  @map("cover_url")
   bio       String?
   location  String?  @db.VarChar(100)
   roleId    Int      @default(3) @map("role_id")
@@ -25,10 +26,56 @@ model User {
   receivedRequests  FriendRequest[]   @relation("to")
   friendships       Friendship[]      @relation("user")
   friendshipsOf     Friendship[]      @relation("friend")
+  photos            Photo[]
 
   @@index([email], map: "idx_users_email")
   @@index([roleId], map: "idx_users_role")
   @@map("users")
+}
+
+model Photo {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  url           String
+  objectKey     String?  @map("object_key")
+  isCurrent     Boolean  @default(false) @map("is_current")
+  likesCount    Int      @default(0) @map("likes_count")
+  commentsCount Int      @default(0) @map("comments_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes    PhotoLike[]
+  comments PhotoComment[]
+
+  @@unique([userId, url], map: "uq_photo_user_url")
+  @@index([userId, createdAt(sort: Desc)], map: "idx_photos_user_created")
+  @@map("photos")
+}
+
+model PhotoLike {
+  id        Int      @id @default(autoincrement())
+  photoId   Int      @map("photo_id")
+  userId    Int      @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@unique([photoId, userId], map: "uq_photo_like")
+  @@index([photoId], map: "idx_photo_likes_photo")
+  @@map("photo_likes")
+}
+
+model PhotoComment {
+  id        Int      @id @default(autoincrement())
+  photoId   Int      @map("photo_id")
+  userId    Int      @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@index([photoId, createdAt(sort: Desc)], map: "idx_photo_comments_photo")
+  @@map("photo_comments")
 }
 
 model Follow {

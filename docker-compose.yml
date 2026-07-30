@@ -10,7 +10,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       JWT_ISSUER: ${JWT_ISSUER:-social-auth-service}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-social-api}
-      NODE_ENV: production
+      # development → disable_jwk_security=true in krakend.tmpl (JWKS over http:// backend-net)
+      NODE_ENV: development
+      # Vite frontend origins (/, /messages, /photos SPA): keep in sync with SOCKET_CORS_ORIGIN
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       KRAKEND_PORT: ${KRAKEND_PORT:-8080}
       FC_ENABLE: "1"
@@ -88,6 +90,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      # Avatar/cover for profile; /photos gallery uses local object URLs (no gallery bucket yet)
       MINIO_API_CORS_ALLOW_ORIGIN: ${CORS_ORIGINS:-http://localhost:5173}
     volumes:
       - minio-data:/data
@@ -357,11 +360,21 @@ services:
       RABBITMQ_CONNECT_MAX_ATTEMPTS: 30
       RABBITMQ_CONNECT_RETRY_DELAY_MS: 2000
       RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS: 10000
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-social-avatars}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-http://localhost:9000/social-avatars}
+      S3_UPLOAD_ENDPOINT: ${S3_UPLOAD_ENDPOINT:-http://localhost:9000}
+      S3_UPLOAD_URL_TTL_SECONDS: ${S3_UPLOAD_URL_TTL_SECONDS:-300}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
     depends_on:
       post-db: { condition: service_healthy }
       social-user-service: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');const p=process.env.PORT||3003;const r=h.get('http://127.0.0.1:'+p+'/health',res=>process.exit(res.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.setTimeout(2000,()=>process.exit(1));\""]
       interval: 10s
@@ -371,6 +384,7 @@ services:
     networks: [backend-net]
     restart: unless-stopped
 
+  # Chats/messages REST for frontend /messages (KrakenD → this service; CORS via CORS_ORIGINS)
   social-message-service:
     build:
       context: ./services/message-service
@@ -380,6 +394,7 @@ services:
     env_file:
       - ./services/message-service/.env
     environment:
+      # Keys aligned with services/message-service/.env.example + getConfig()
       NODE_ENV: production
       SERVICE_NAME: social-message-service
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -392,8 +407,8 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${MSG_DB_HOST:-msg-db}:5432/${MSG_DB_NAME}?schema=public"
-      DB_CONNECT_MAX_ATTEMPTS: 10
-      DB_CONNECT_RETRY_DELAY_MS: 2000
+      DB_CONNECT_MAX_ATTEMPTS: ${DB_CONNECT_MAX_ATTEMPTS:-10}
+      DB_CONNECT_RETRY_DELAY_MS: ${DB_CONNECT_RETRY_DELAY_MS:-2000}
     depends_on:
       msg-db: { condition: service_healthy }
     healthcheck:
@@ -433,6 +448,7 @@ services:
       INTERNAL_API_AUTH_ENABLED: ${INTERNAL_API_AUTH_ENABLED:-true}
       USER_SERVICE_URL: ${USER_SERVICE_URL:-http://social-user-service:3002}
       USER_SERVICE_TIMEOUT_MS: ${USER_SERVICE_TIMEOUT_MS:-3000}
+      # Messaging realtime (message:new, chat:*) for Vite origin — same list as KrakenD CORS_ORIGINS
       SOCKET_CORS_ORIGIN: ${CORS_ORIGINS:-http://localhost:5173}
       DB_HOST: ${NOTIF_DB_HOST:-notif-db}
       DB_PORT: 5432
@@ -464,6 +480,8 @@ services:
       QUEUE_FOLLOW_CREATED: notifications.user.follow.created
       QUEUE_FOLLOW_DELETED: notifications.user.follow.deleted
       QUEUE_USER_UPDATED: notifications.user.updated
+      QUEUE_PHOTO_CREATED: notifications.user.photo.created
+      QUEUE_PHOTO_DELETED: notifications.user.photo.deleted
     depends_on:
       notif-db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }

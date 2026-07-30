@@ -22,7 +22,7 @@ const database = new Database(config.databaseUrl);
 const app = express();
 const { port, host, serviceName } = config;
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(jsonErrorHandler);
 app.use(requestLogger);
 
