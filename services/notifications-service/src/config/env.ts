@@ -81,6 +81,10 @@ export interface NotificationQueuesConfig {
   userUpdated: string;
   photoCreated: string;
   photoDeleted: string;
+  messageCreated: string;
+  chatCreated: string;
+  chatDeleted: string;
+  chatRead: string;
 }
 
 export interface NotificationsServiceConfig {
@@ -102,6 +106,7 @@ export interface NotificationsServiceConfig {
   socketCorsOrigin: string;
   userEventsExchange: string;
   postEventsExchange: string;
+  messageEventsExchange: string;
   rabbitmqConnectMaxAttempts: number;
   rabbitmqConnectRetryDelayMs: number;
   rabbitmqConnectMaxRetryDelayMs: number;
@@ -136,6 +141,7 @@ export const getConfig = (): NotificationsServiceConfig => {
       socketCorsOrigin: requireEnv('SOCKET_CORS_ORIGIN'),
       userEventsExchange: requireEnv('USER_EVENTS_EXCHANGE'),
       postEventsExchange: requireEnv('POST_EVENTS_EXCHANGE'),
+      messageEventsExchange: requireEnv('MESSAGE_EVENTS_EXCHANGE'),
       rabbitmqConnectMaxAttempts: requirePositiveInt('RABBITMQ_CONNECT_MAX_ATTEMPTS'),
       rabbitmqConnectRetryDelayMs: requirePositiveInt('RABBITMQ_CONNECT_RETRY_DELAY_MS'),
       rabbitmqConnectMaxRetryDelayMs: requirePositiveInt('RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS'),
@@ -160,6 +166,10 @@ export const getConfig = (): NotificationsServiceConfig => {
         userUpdated: requireEnv('QUEUE_USER_UPDATED'),
         photoCreated: requireEnv('QUEUE_PHOTO_CREATED'),
         photoDeleted: requireEnv('QUEUE_PHOTO_DELETED'),
+        messageCreated: requireEnv('QUEUE_MESSAGE_CREATED'),
+        chatCreated: requireEnv('QUEUE_CHAT_CREATED'),
+        chatDeleted: requireEnv('QUEUE_CHAT_DELETED'),
+        chatRead: requireEnv('QUEUE_CHAT_READ'),
       },
     };
   }

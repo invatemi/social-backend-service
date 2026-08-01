@@ -1,56 +1,46 @@
 import express from 'express';
-import { Pool } from 'pg';
-import { getConfig, loadEnv } from './config';
+import {
+  getConfig,
+  loadEnv,
+  Database,
+  createHealthHandler,
+  registerShutdown,
+} from './config';
+import {
+  errorHandler,
+  requestLogger,
+  jsonErrorHandler,
+  eventBus,
+} from './middleware';
+import { messageRoutes } from './routes';
 
 loadEnv();
 const config = getConfig();
 
+const database = new Database(config.databaseUrl);
 const app = express();
+const { port, host, serviceName } = config;
 
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    service: config.serviceName,
-    port: config.port,
-  });
+app.use(express.json({ limit: '1mb' }));
+app.use(jsonErrorHandler);
+app.use(requestLogger);
+
+const attachDb = (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+  (req as any).prisma = database.prisma;
+  next();
+};
+
+app.use('/api/messages', attachDb, messageRoutes);
+
+app.get('/health', createHealthHandler(serviceName, () => database.isHealthy()));
+app.use(errorHandler);
+
+void eventBus.connect().catch((error) => {
+  console.log('[EventBus] Не удалось подключиться к RabbitMQ:', error);
 });
 
-const pool = new Pool({ connectionString: config.databaseUrl });
-
-async function connectWithRetry(): Promise<boolean> {
-  const { dbConnectMaxAttempts, dbConnectRetryDelayMs } = config;
-
-  for (let attempt = 1; attempt <= dbConnectMaxAttempts; attempt++) {
-    try {
-      const client = await pool.connect();
-      client.release();
-      console.log('Connected to database');
-      return true;
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`DB connection attempt ${attempt}/${dbConnectMaxAttempts} failed:`, message);
-      if (attempt === dbConnectMaxAttempts) {
-        console.error('Failed to connect to database after all attempts');
-        return false;
-      }
-      await new Promise((resolve) => setTimeout(resolve, dbConnectRetryDelayMs));
-    }
-  }
-
-  return false;
-}
-
-void connectWithRetry();
-
-app.get('/api/users', async (_req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM users');
-    res.json(result.rows);
-  } catch {
-    res.status(503).json({ error: 'Database unavailable' });
-  }
+const server = app.listen(port, host, () => {
+  console.log(`${serviceName} запущен на порту ${port}`);
 });
 
-app.listen(config.port, config.host, () => {
-  console.log(`${config.serviceName} running on port ${config.port}`);
-});
+registerShutdown(server, [() => eventBus.disconnect(), () => database.disconnect()]);

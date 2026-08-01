@@ -6,3 +6,9 @@ export { registerPostUpdatedConsumer } from './post-updated.consumer';
 export { registerPostDeletedConsumer } from './post-deleted.consumer';
 export { registerPostLikedConsumer } from './post-liked.consumer';
 export { registerUserEventConsumers } from './user-events.consumer';
+export {
+  registerMessageCreatedConsumer,
+  registerChatCreatedConsumer,
+  registerChatDeletedConsumer,
+  registerChatReadConsumer,
+} from './message-events.consumer';

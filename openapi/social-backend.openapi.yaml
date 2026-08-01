@@ -66,6 +66,147 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/HealthResponse'
+  /api/messages/chats:
+    get:
+      tags: [Messages]
+      summary: List chats for current user
+      operationId: listChats
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Chat list
+    post:
+      tags: [Messages]
+      summary: Create or return existing 1-1 chat
+      operationId: createChat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [participantIds]
+              properties:
+                participantIds:
+                  type: array
+                  items: { type: integer }
+                isGroup: { type: boolean }
+                chatName: { type: string }
+      responses:
+        '200':
+          description: Flat ChatData
+  /api/messages/chats/{chatId}:
+    delete:
+      tags: [Messages]
+      summary: Delete chat
+      operationId: deleteChat
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Deleted
+  /api/messages/chats/{chatId}/upload-url:
+    get:
+      tags: [Messages]
+      summary: Get presigned URL for message attachment upload
+      operationId: getMessageAttachmentUploadUrl
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: contentType
+          in: query
+          schema: { type: string }
+        - name: fileName
+          in: query
+          schema: { type: string }
+        - name: sizeBytes
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Presigned upload URL payload
+  /api/messages/chats/{chatId}/attachments:
+    get:
+      tags: [Messages]
+      summary: List chat attachments (photos and files)
+      operationId: listChatAttachments
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: kind
+          in: query
+          schema: { type: string, enum: [image, file] }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Attachments list
+  /api/messages/send:
+    post:
+      tags: [Messages]
+      summary: Send a message (text and/or attachments)
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [chatId]
+              properties:
+                chatId: { type: integer }
+                content: { type: string, maxLength: 4000 }
+                attachments:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: object
+                    required: [url, fileName, mimeType, sizeBytes, objectKey]
+                    properties:
+                      url: { type: string, format: uri }
+                      fileName: { type: string }
+                      mimeType: { type: string }
+                      sizeBytes: { type: integer }
+                      objectKey: { type: string }
+      responses:
+        '200':
+          description: Flat MessageData with attachments
+  /api/messages/{chatId}:
+    get:
+      tags: [Messages]
+      summary: List messages (marks chat as read)
+      operationId: listMessages
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: before
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Messages list with attachments
   /api/notifications/health:
     get:
       tags: [Health]

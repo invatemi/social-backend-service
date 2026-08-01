@@ -1631,6 +1631,240 @@
       ]
     },
     {
+      "endpoint": "/api/messages/chats",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-message-service:3004"
+          ],
+          "url_pattern": "/api/messages/chats"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/messages/chats",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-message-service:3004"
+          ],
+          "url_pattern": "/api/messages/chats"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/messages/chats/{chatId}",
+      "method": "DELETE",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-message-service:3004"
+          ],
+          "url_pattern": "/api/messages/chats/{chatId}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/messages/chats/{chatId}/upload-url",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "input_query_strings": [
+        "contentType",
+        "fileName",
+        "sizeBytes"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-message-service:3004"
+          ],
+          "url_pattern": "/api/messages/chats/{chatId}/upload-url"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/messages/chats/{chatId}/attachments",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "input_query_strings": [
+        "kind",
+        "limit",
+        "offset"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-message-service:3004"
+          ],
+          "url_pattern": "/api/messages/chats/{chatId}/attachments"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/messages/send",
+      "method": "POST",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-message-service:3004"
+          ],
+          "url_pattern": "/api/messages/send"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/messages/{chatId}",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "x-user-id",
+        "x-user-role"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://social-message-service:3004"
+          ],
+          "url_pattern": "/api/messages/{chatId}"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_url": "http://social-auth-service:3001/api/auth/jwks",
+          "disable_jwk_security": {{ if eq (env "NODE_ENV" | default "production") "production" }}false{{ else }}true{{ end }},
+          "issuer": "{{ env "JWT_ISSUER" | default "social-auth-service" }}",
+          "audience": ["{{ env "JWT_AUDIENCE" | default "social-api" }}"],
+          "cache": true,
+          "propagate_claims": [
+            ["userId", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      }
+    },
+    {
       "endpoint": "/api/notifications/health",
       "method": "GET",
       "public": true,

@@ -580,6 +580,71 @@
       }]
     },
     {
+      "endpoint": "/api/messages/chats",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/chats"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/chats",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/chats"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/chats/{chatId}",
+      "method": "DELETE",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/chats/{chatId}"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/chats/{chatId}/upload-url",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "input_query_strings": ["contentType", "fileName", "sizeBytes"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/chats/{chatId}/upload-url"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/chats/{chatId}/attachments",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "input_query_strings": ["kind", "limit", "offset"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/chats/{chatId}/attachments"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/send",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/send"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/{chatId}",
+      "method": "GET",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/{chatId}"
+      }]
+    },
+    {
       "endpoint": "/api/notifications/health",
       "method": "GET",
       "public": true,

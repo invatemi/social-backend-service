@@ -25,7 +25,7 @@
 | `user-service` | Профили, друзья, подписки, смена пароля, provisioning | `user_db` + доступ к `auth_db` (password) |
 | `post-service` | Посты, комментарии, лайки, лента | `post_db` |
 | `notifications-service` | Хранение уведомлений, realtime (Socket.IO), consumers | `notif_db` |
-| `message-service` | Заготовка/прототип messaging (минимальный API) | `msg_db` |
+| `message-service` | Личные чаты и сообщения, события `message.events` | `msg_db` |
 
 **Правило границ:** каждый сервис владеет своей схемой БД. Кросс-сервисные данные передаются через HTTP (internal API) или события RabbitMQ, а не через прямой доступ к чужой БД (исключение: `user-service` читает/пишет `auth_db` только для password flow).
 
@@ -43,10 +43,12 @@ flowchart LR
   Auth -->|user.registered| RabbitMQ
   User -->|user.updated follow.* friend.*| RabbitMQ
   Post -->|post.* comment.*| RabbitMQ
+  Msg -->|message.* chat.*| RabbitMQ
   RabbitMQ --> Notif
   RabbitMQ --> User
 
   Post -->|HTTP internal| User
+  Msg -->|HTTP internal| User
   Notif -->|HTTP| User
   User --> Redis
   Post --> Redis
@@ -61,7 +63,7 @@ flowchart LR
 - Защищённые downstream-эндпоинты получают identity через заголовки:
   - `x-user-id`
   - `x-user-role` (опционально)
-- Сервис-сервис вызовы: `post-service` → `user-service` (`/api/users/internal/*`) для авторов и источников ленты.
+- Сервис-сервис вызовы: `post-service` / `message-service` → `user-service` (`/api/users/internal/*`) для авторов.
 
 ### Асинхронное (RabbitMQ)
 
@@ -69,8 +71,9 @@ flowchart LR
 |----------------|-----------|----------|
 | `user.events` | auth-service, user-service | user-service, notifications-service |
 | `post.events` | post-service | notifications-service |
+| `message.events` | message-service | notifications-service |
 
-Типичные routing keys: `user.registered`, `user.updated`, `follow.created`, `friend.requested`, `post.created`, `comment.created`, `post.liked`.
+Типичные routing keys: `user.registered`, `user.updated`, `follow.created`, `friend.requested`, `post.created`, `comment.created`, `post.liked`, `message.created`, `chat.created`, `chat.deleted`.
 
 ### Кэш (Redis)
 

@@ -14,6 +14,7 @@
 | `/api/friends` | user-service |
 | `/api/posts` | post-service |
 | `/api/comments` | post-service |
+| `/api/messages` | message-service |
 | `/api/notifications` | notifications-service |
 
 ## Аутентификация

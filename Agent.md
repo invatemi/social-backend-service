@@ -75,8 +75,8 @@ docs/
 
 | Файл | Описание |
 |------|----------|
-| [docs/message-service/overview.md](docs/message-service/overview.md) | Текущее состояние заготовки messaging-сервиса и целевая роль. |
-| [docs/message-service/instructions.md](docs/message-service/instructions.md) | Минимальный запуск, доступные route'ы и план доработки до production-шаблона. |
+| [docs/message-service/overview.md](docs/message-service/overview.md) | Чаты, сообщения, `message.events`, контракт фронта. |
+| [docs/message-service/instructions.md](docs/message-service/instructions.md) | Запуск, env, REST endpoint'ы, realtime troubleshooting. |
 
 ## Инфраструктура (вне `/docs`)
 

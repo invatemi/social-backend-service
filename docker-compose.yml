@@ -207,6 +207,8 @@ services:
       SERVICE_CLIENT_POST_SERVICE_SECRET: ${SERVICE_CLIENT_POST_SERVICE_SECRET:?Set SERVICE_CLIENT_POST_SERVICE_SECRET in .env}
       SERVICE_CLIENT_NOTIFICATIONS_SERVICE_ID: ${SERVICE_CLIENT_NOTIFICATIONS_SERVICE_ID:-notifications-service}
       SERVICE_CLIENT_NOTIFICATIONS_SERVICE_SECRET: ${SERVICE_CLIENT_NOTIFICATIONS_SERVICE_SECRET:?Set SERVICE_CLIENT_NOTIFICATIONS_SERVICE_SECRET in .env}
+      SERVICE_CLIENT_MESSAGE_SERVICE_ID: ${SERVICE_CLIENT_MESSAGE_SERVICE_ID:-message-service}
+      SERVICE_CLIENT_MESSAGE_SERVICE_SECRET: ${SERVICE_CLIENT_MESSAGE_SERVICE_SECRET:?Set SERVICE_CLIENT_MESSAGE_SERVICE_SECRET in .env}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${AUTH_DB_HOST:-auth-db}:5432/${AUTH_DB_NAME}?schema=public"
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
       ACCESS_TOKEN_KEY_ID: auth-service-key
@@ -387,30 +389,63 @@ services:
   # Chats/messages REST for frontend /messages (KrakenD → this service; CORS via CORS_ORIGINS)
   social-message-service:
     build:
-      context: ./services/message-service
+      context: .
+      dockerfile: services/message-service/Dockerfile
       args:
         SERVICE_PORT: ${MSG_PORT:-3004}
     container_name: social-message
     env_file:
       - ./services/message-service/.env
     environment:
-      # Keys aligned with services/message-service/.env.example + getConfig()
       NODE_ENV: production
       SERVICE_NAME: social-message-service
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: ${MSG_PORT:-3004}
       HOST: 0.0.0.0
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_ISSUER: ${JWT_ISSUER:-social-auth-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-social-api}
+      JWT_CLOCK_TOLERANCE_SEC: ${JWT_CLOCK_TOLERANCE_SEC:-30}
+      JWT_CLAIMS_STRICT: ${JWT_CLAIMS_STRICT:-false}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://social-auth-service:3001}
+      SERVICE_CLIENT_ID: ${SERVICE_CLIENT_MESSAGE_SERVICE_ID:-message-service}
+      SERVICE_CLIENT_SECRET: ${SERVICE_CLIENT_MESSAGE_SERVICE_SECRET:?Set SERVICE_CLIENT_MESSAGE_SERVICE_SECRET in .env}
+      INTERNAL_API_AUTH_ENABLED: ${INTERNAL_API_AUTH_ENABLED:-true}
+      USER_SERVICE_URL: ${USER_SERVICE_URL:-http://social-user-service:3002}
+      USER_SERVICE_TIMEOUT_MS: ${USER_SERVICE_TIMEOUT_MS:-3000}
       DB_HOST: ${MSG_DB_HOST:-msg-db}
       DB_PORT: 5432
       DB_NAME: ${MSG_DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@${MSG_DB_HOST:-msg-db}:5432/${MSG_DB_NAME}?schema=public"
+      RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
+      MESSAGE_EVENTS_EXCHANGE: message.events
+      RABBITMQ_CONNECT_MAX_ATTEMPTS: 30
+      RABBITMQ_CONNECT_RETRY_DELAY_MS: 2000
+      RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS: 10000
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-social-avatars}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-http://localhost:9000/social-avatars}
+      S3_UPLOAD_ENDPOINT: ${S3_UPLOAD_ENDPOINT:-http://localhost:9000}
+      S3_UPLOAD_URL_TTL_SECONDS: ${S3_UPLOAD_URL_TTL_SECONDS:-300}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      MAX_ATTACHMENT_BYTES: ${MAX_ATTACHMENT_BYTES:-20971520}
+      MAX_ATTACHMENTS_PER_MESSAGE: ${MAX_ATTACHMENTS_PER_MESSAGE:-5}
+      DEFAULT_PAGE: 1
+      DEFAULT_PAGE_SIZE: 50
       DB_CONNECT_MAX_ATTEMPTS: ${DB_CONNECT_MAX_ATTEMPTS:-10}
       DB_CONNECT_RETRY_DELAY_MS: ${DB_CONNECT_RETRY_DELAY_MS:-2000}
     depends_on:
       msg-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      social-auth-service: { condition: service_healthy }
+      social-user-service: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      minio-create-bucket: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');const p=process.env.PORT||3004;const r=h.get('http://127.0.0.1:'+p+'/health',res=>process.exit(res.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.setTimeout(2000,()=>process.exit(1));\""]
       interval: 10s
@@ -459,6 +494,7 @@ services:
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672"
       USER_EVENTS_EXCHANGE: user.events
       POST_EVENTS_EXCHANGE: post.events
+      MESSAGE_EVENTS_EXCHANGE: message.events
       RABBITMQ_CONNECT_MAX_ATTEMPTS: 30
       RABBITMQ_CONNECT_RETRY_DELAY_MS: 2000
       RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS: 10000
@@ -482,6 +518,10 @@ services:
       QUEUE_USER_UPDATED: notifications.user.updated
       QUEUE_PHOTO_CREATED: notifications.user.photo.created
       QUEUE_PHOTO_DELETED: notifications.user.photo.deleted
+      QUEUE_MESSAGE_CREATED: notifications.message.created
+      QUEUE_CHAT_CREATED: notifications.chat.created
+      QUEUE_CHAT_DELETED: notifications.chat.deleted
+      QUEUE_CHAT_READ: notifications.chat.read
     depends_on:
       notif-db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }

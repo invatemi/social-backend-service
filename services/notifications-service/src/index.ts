@@ -22,6 +22,10 @@ import {
   registerPostDeletedConsumer,
   registerPostLikedConsumer,
   registerUserEventConsumers,
+  registerMessageCreatedConsumer,
+  registerChatCreatedConsumer,
+  registerChatDeletedConsumer,
+  registerChatReadConsumer,
 } from './consumers';
 import { notificationRoutes, initSocketHub } from './routes';
 
@@ -58,6 +62,10 @@ const startConsumers = async (): Promise<void> => {
     registerPostDeletedConsumer(),
     registerPostLikedConsumer(),
     registerUserEventConsumers(database.prisma),
+    registerMessageCreatedConsumer(),
+    registerChatCreatedConsumer(),
+    registerChatDeletedConsumer(),
+    registerChatReadConsumer(),
   ]);
   console.log('Consumers уведомлений готовы');
 };

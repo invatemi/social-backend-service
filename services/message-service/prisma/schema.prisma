@@ -1,13 +1,67 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model Chat {
+  id            Int                 @id @default(autoincrement())
+  isGroup       Boolean             @default(false) @map("is_group")
+  chatName      String?             @map("chat_name") @db.VarChar(150)
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  lastMessageAt DateTime?           @map("last_message_at")
+  participants  ChatParticipant[]
+  messages      Message[]
+  attachments   MessageAttachment[]
+
+  @@map("chats")
+}
+
+model ChatParticipant {
+  id         Int       @id @default(autoincrement())
+  chatId     Int       @map("chat_id")
+  userId     Int       @map("user_id")
+  lastReadAt DateTime? @map("last_read_at")
+  joinedAt   DateTime  @default(now()) @map("joined_at")
+  chat       Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId], map: "uq_chat_participant")
+  @@index([userId], map: "idx_chat_participants_user")
+  @@map("chat_participants")
+}
+
+model Message {
+  id          Int                 @id @default(autoincrement())
+  chatId      Int                 @map("chat_id")
+  authorId    Int                 @map("author_id")
+  content     String              @default("") @db.VarChar(4000)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  chat        Chat                @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  attachments MessageAttachment[]
+
+  @@index([chatId, createdAt], map: "idx_messages_chat_created")
+  @@map("messages")
+}
+
+model MessageAttachment {
+  id        Int      @id @default(autoincrement())
+  messageId Int      @map("message_id")
+  chatId    Int      @map("chat_id")
+  kind      String   @db.VarChar(16)
+  fileName  String   @map("file_name") @db.VarChar(255)
+  mimeType  String   @map("mime_type") @db.VarChar(127)
+  sizeBytes Int      @map("size_bytes")
+  url       String   @db.VarChar(1000)
+  objectKey String   @map("object_key") @db.VarChar(512)
+  createdAt DateTime @default(now()) @map("created_at")
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([messageId], map: "idx_message_attachments_message")
+  @@index([chatId, kind, createdAt], map: "idx_message_attachments_chat_kind_created")
+  @@map("message_attachments")
 }

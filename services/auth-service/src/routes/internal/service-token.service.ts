@@ -46,6 +46,17 @@ export const getServiceClients = (): Record<string, ServiceClientCredentials> =>
     };
   }
 
+  const messageId = process.env.SERVICE_CLIENT_MESSAGE_SERVICE_ID;
+  const messageSecret = process.env.SERVICE_CLIENT_MESSAGE_SERVICE_SECRET;
+  if (messageId && messageSecret) {
+    clients[messageId] = {
+      secret: messageSecret,
+      audiences: {
+        'user-service': ['internal:users:read'],
+      },
+    };
+  }
+
   return clients;
 };
 
