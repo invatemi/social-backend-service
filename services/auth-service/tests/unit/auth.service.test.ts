@@ -24,6 +24,8 @@ jest.mock('../../src/config/env', () => ({
     minUsernameLength: 3,
     bcryptSaltRounds: 10,
     defaultUserRoleId: 2,
+    accountSessionTokenBytes: 16,
+    accountSessionCookieMaxAgeDays: 30,
   }),
 }));
 
@@ -41,6 +43,18 @@ const prismaMock = {
   refreshToken: {
     create: jest.fn(),
     findUnique: jest.fn(),
+    delete: jest.fn(),
+  },
+  deviceSession: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    delete: jest.fn(),
+  },
+  deviceSessionAccount: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
     delete: jest.fn(),
   },
 };

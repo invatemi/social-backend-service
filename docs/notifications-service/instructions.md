@@ -53,17 +53,21 @@ PATCH /api/notifications/read-all
 
 Регистрируются в `src/index.ts`:
 
-- `user-events.consumer` — friend, follow, user.updated
+- `user-events.consumer` — friend, follow, user.updated, photo.*
 - `post-created/updated/deleted/liked`
 - `comment-created/updated/deleted`
+- `message-events.consumer` — message.created/updated/deleted, chat.created/deleted/read
 
-При валидном payload — запись в БД + optional Socket emit.
+При валидном payload — запись в БД (где нужно) + Socket emit.
 
 ## Socket.IO
 
 Инициализация: `initSocketHub(httpServer)` в `index.ts`.
 
-Клиент подключается с JWT. События маппятся из типов уведомлений (`FRIEND_REQUESTED`, `FOLLOW_CREATED`, и т.д.) в каналы вида `notification:friend_request`.
+- JWT на connect; комнаты `user:{id}`, `chat:{id}`
+- Presence: `presence:check` (max 100 ids) регистрирует watchers; `user:online`/`user:offline` только им
+- При `REDIS_URL` — `@socket.io/redis-adapter` + Redis set `socket:online_users` для multi-instance
+- Клиентские notification-каналы: `notification:friend_request`, и т.д.
 
 ## Типы уведомлений (персистентные)
 

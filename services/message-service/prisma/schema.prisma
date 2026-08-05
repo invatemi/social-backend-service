@@ -18,6 +18,7 @@ model Chat {
   messages      Message[]
   attachments   MessageAttachment[]
 
+  @@index([lastMessageAt(sort: Desc)], map: "idx_chats_last_message_at")
   @@map("chats")
 }
 
@@ -35,15 +36,21 @@ model ChatParticipant {
 }
 
 model Message {
-  id          Int                 @id @default(autoincrement())
-  chatId      Int                 @map("chat_id")
-  authorId    Int                 @map("author_id")
-  content     String              @default("") @db.VarChar(4000)
-  createdAt   DateTime            @default(now()) @map("created_at")
-  chat        Chat                @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  attachments MessageAttachment[]
+  id              Int                 @id @default(autoincrement())
+  chatId          Int                 @map("chat_id")
+  authorId        Int                 @map("author_id")
+  content         String              @default("") @db.VarChar(4000)
+  createdAt       DateTime            @default(now()) @map("created_at")
+  editedAt        DateTime?           @map("edited_at")
+  forwardedFromId Int?                @map("forwarded_from_id")
+  replyToId       Int?                @map("reply_to_id")
+  chat            Chat                @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  replyTo         Message?            @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies         Message[]           @relation("MessageReplies")
+  attachments     MessageAttachment[]
 
   @@index([chatId, createdAt], map: "idx_messages_chat_created")
+  @@index([replyToId], map: "idx_messages_reply_to")
   @@map("messages")
 }
 

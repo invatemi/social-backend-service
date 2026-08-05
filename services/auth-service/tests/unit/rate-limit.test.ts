@@ -11,6 +11,9 @@ const testRateLimitConfig = {
   rateLimitLoginWindowMs: 60_000,
   rateLimitRegisterMax: 2,
   rateLimitRegisterWindowMs: 3_600_000,
+  rateLimitRefreshMax: 2,
+  rateLimitRefreshWindowMs: 60_000,
+  redisUrl: '',
 } as AuthServiceConfig;
 
 const buildRateLimitApp = (limiter: ReturnType<typeof createLoginRateLimiter>, path: string) => {

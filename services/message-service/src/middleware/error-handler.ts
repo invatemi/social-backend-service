@@ -4,6 +4,7 @@ import {
   MessageError,
   MessageValidationError,
   ChatNotFoundError,
+  MessageNotFoundError,
   MessageForbiddenError,
   UnauthorizedError,
 } from '../routes/message/message.errors';
@@ -37,6 +38,10 @@ export const errorHandler = (err: Error, req: Request, res: Response, _next: Nex
   } else if (err instanceof ChatNotFoundError) {
     statusCode = 404;
     errorCode = 'CHAT_NOT_FOUND';
+    errorMessage = err.message;
+  } else if (err instanceof MessageNotFoundError) {
+    statusCode = 404;
+    errorCode = 'MESSAGE_NOT_FOUND';
     errorMessage = err.message;
   } else if (err instanceof MessageForbiddenError) {
     statusCode = 403;

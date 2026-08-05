@@ -16,54 +16,59 @@ model Role {
 }
 
 model AuthAccount {
-  id            Int            @id @default(autoincrement())
-  email         String         @unique
-  passwordHash  String         @map("password_hash")
-  username      String         @map("name")
-  roleId        Int            @map("role_id")
-  role          Role           @relation(fields: [roleId], references: [id])
-  createdAt     DateTime       @default(now()) @map("created_at")
-  refreshTokens RefreshToken[]
+  id                   Int                    @id @default(autoincrement())
+  email                String                 @unique
+  passwordHash         String                 @map("password_hash")
+  username             String                 @map("name")
+  roleId               Int                    @map("role_id")
+  role                 Role                   @relation(fields: [roleId], references: [id])
+  createdAt            DateTime               @default(now()) @map("created_at")
+  refreshTokens        RefreshToken[]
+  deviceSessionAccounts DeviceSessionAccount[]
 
   @@map("auth_accounts")
 }
 
 model RefreshToken {
-  id              Int           @id @default(autoincrement())
-  tokenLookupHash String        @unique @map("token_lookup_hash")
-  tokenHash       String        @map("token_hash")
-  tokenSalt       String        @map("token_salt")
-  expiresAt       DateTime      @map("expires_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  userId          Int           @map("user_id")
-  authAccount     AuthAccount   @relation(fields: [userId], references: [id])
+  id                   Int                   @id @default(autoincrement())
+  tokenLookupHash      String                @unique @map("token_lookup_hash")
+  tokenHash            String                @map("token_hash")
+  tokenSalt            String                @map("token_salt")
+  expiresAt            DateTime              @map("expires_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  userId               Int                   @map("user_id")
+  authAccount          AuthAccount           @relation(fields: [userId], references: [id])
+  deviceSessionAccount  DeviceSessionAccount?
 
+  @@index([expiresAt], map: "idx_refresh_tokens_expires_at")
+  @@index([userId], map: "idx_refresh_tokens_user_id")
   @@map("refresh_tokens")
 }
 
-model UserTokens {
-  id         Int      @id @default(autoincrement())
-  userId     Int      @map("user_id")
-  tokenHash  String   @map("token_hash")
-  tokenType  String   @map("token_type")
-  expiresAt  DateTime @map("expires_at")
-  isRevoked  Boolean  @map("is_revoked")
-  createdAt  DateTime @default(now()) @map("created_at")
-  lastUsedAt DateTime @map("last_used_at")
+model DeviceSession {
+  id              Int                    @id @default(autoincrement())
+  tokenLookupHash String                 @unique @map("token_lookup_hash")
+  tokenHash       String                 @map("token_hash")
+  tokenSalt       String                 @map("token_salt")
+  expiresAt       DateTime               @map("expires_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  accounts        DeviceSessionAccount[]
 
-  @@unique([userId, tokenType])
-  @@map("user_tokens")
+  @@map("device_sessions")
 }
 
-model VerificationCodes {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  codeHash  String   @map("code_hash")
-  purpose   String   @map("purpose")
-  expiresAt DateTime @map("expires_at")
-  isUsed    Boolean  @map("is_used")
-  createdAt DateTime @default(now()) @map("created_at")
+model DeviceSessionAccount {
+  id              Int           @id @default(autoincrement())
+  deviceSessionId Int           @map("device_session_id")
+  userId          Int           @map("user_id")
+  refreshTokenId  Int           @unique @map("refresh_token_id")
+  lastActiveAt    DateTime      @default(now()) @map("last_active_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  deviceSession    DeviceSession @relation(fields: [deviceSessionId], references: [id], onDelete: Cascade)
+  authAccount     AuthAccount   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken    RefreshToken  @relation(fields: [refreshTokenId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, purpose])
-  @@map("verification_codes")
+  @@unique([deviceSessionId, userId])
+  @@map("device_session_accounts")
 }
+

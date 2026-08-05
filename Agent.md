@@ -47,8 +47,8 @@ docs/
 
 | Файл | Описание |
 |------|----------|
-| [docs/auth-service/overview.md](docs/auth-service/overview.md) | Назначение auth-service: JWT, регистрация, связь с user-service через `user.registered`. |
-| [docs/auth-service/instructions.md](docs/auth-service/instructions.md) | Запуск, env, endpoint'ы register/login/refresh и troubleshooting. |
+| [docs/auth-service/overview.md](docs/auth-service/overview.md) | Назначение auth-service: JWT, регистрация, multi-account vault, связь с user-service через `user.registered`. |
+| [docs/auth-service/instructions.md](docs/auth-service/instructions.md) | Запуск, env, endpoint'ы register/login/refresh/accounts и troubleshooting. |
 
 ### user-service
 
@@ -68,7 +68,7 @@ docs/
 
 | Файл | Описание |
 |------|----------|
-| [docs/notifications-service/overview.md](docs/notifications-service/overview.md) | In-app уведомления, Socket.IO, consumers user/post событий. |
+| [docs/notifications-service/overview.md](docs/notifications-service/overview.md) | In-app уведомления, Socket.IO, consumers user/post/message событий. |
 | [docs/notifications-service/instructions.md](docs/notifications-service/instructions.md) | REST API уведомлений, consumers, realtime и диагностика. |
 
 ### message-service
@@ -85,6 +85,7 @@ docs/
 | Docker Compose | `docker-compose.yml` |
 | KrakenD | `krakend/krakend.tmpl` |
 | RabbitMQ config | `rabbitmq/` |
+| OpenAPI | `openapi/social-backend.openapi.yaml` |
 | Env template | `.env.example` |
 
 ## Стек (кратко)

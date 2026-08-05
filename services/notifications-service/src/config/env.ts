@@ -82,6 +82,8 @@ export interface NotificationQueuesConfig {
   photoCreated: string;
   photoDeleted: string;
   messageCreated: string;
+  messageUpdated: string;
+  messageDeleted: string;
   chatCreated: string;
   chatDeleted: string;
   chatRead: string;
@@ -104,6 +106,7 @@ export interface NotificationsServiceConfig {
   userServiceUrl: string;
   userServiceTimeoutMs: number;
   socketCorsOrigin: string;
+  redisUrl: string;
   userEventsExchange: string;
   postEventsExchange: string;
   messageEventsExchange: string;
@@ -139,6 +142,7 @@ export const getConfig = (): NotificationsServiceConfig => {
       userServiceUrl: requireEnv('USER_SERVICE_URL'),
       userServiceTimeoutMs: requirePositiveInt('USER_SERVICE_TIMEOUT_MS'),
       socketCorsOrigin: requireEnv('SOCKET_CORS_ORIGIN'),
+      redisUrl: optionalString('REDIS_URL', ''),
       userEventsExchange: requireEnv('USER_EVENTS_EXCHANGE'),
       postEventsExchange: requireEnv('POST_EVENTS_EXCHANGE'),
       messageEventsExchange: requireEnv('MESSAGE_EVENTS_EXCHANGE'),
@@ -167,6 +171,8 @@ export const getConfig = (): NotificationsServiceConfig => {
         photoCreated: requireEnv('QUEUE_PHOTO_CREATED'),
         photoDeleted: requireEnv('QUEUE_PHOTO_DELETED'),
         messageCreated: requireEnv('QUEUE_MESSAGE_CREATED'),
+        messageUpdated: requireEnv('QUEUE_MESSAGE_UPDATED'),
+        messageDeleted: requireEnv('QUEUE_MESSAGE_DELETED'),
         chatCreated: requireEnv('QUEUE_CHAT_CREATED'),
         chatDeleted: requireEnv('QUEUE_CHAT_DELETED'),
         chatRead: requireEnv('QUEUE_CHAT_READ'),

@@ -1,5 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthError, ValidationError, UserAlreadyExistsError, InvalidCredentialsError, InvalidRefreshTokenError } from '../routes/auth/auth.errors';
+import {
+  AuthError,
+  ValidationError,
+  UserAlreadyExistsError,
+  InvalidCredentialsError,
+  InvalidRefreshTokenError,
+  ForbiddenError,
+  InvalidAccountSessionError,
+  AccountAlreadyLinkedError,
+  AccountNotLinkedError,
+} from '../routes/auth/auth.errors';
 
 /** Преобразует ошибки аутентификации в HTTP-ответы. */
 export const errorHandler = (
@@ -24,6 +34,14 @@ export const errorHandler = (
     statusCode = 409;
     errorCode = 'USER_EXISTS';
     errorMessage = err.message;
+  } else if (err instanceof AccountAlreadyLinkedError) {
+    statusCode = 409;
+    errorCode = err.code;
+    errorMessage = err.message;
+  } else if (err instanceof AccountNotLinkedError) {
+    statusCode = 404;
+    errorCode = err.code;
+    errorMessage = err.message;
   } else if (err instanceof InvalidCredentialsError) {
     statusCode = 401;
     errorCode = 'INVALID_CREDENTIALS';
@@ -31,6 +49,14 @@ export const errorHandler = (
   } else if (err instanceof InvalidRefreshTokenError) {
     statusCode = 401;
     errorCode = 'INVALID_REFRESH_TOKEN';
+    errorMessage = err.message;
+  } else if (err instanceof InvalidAccountSessionError) {
+    statusCode = 401;
+    errorCode = err.code;
+    errorMessage = err.message;
+  } else if (err instanceof ForbiddenError) {
+    statusCode = 403;
+    errorCode = err.code;
     errorMessage = err.message;
   } else if (err instanceof AuthError) {
     statusCode = 400;

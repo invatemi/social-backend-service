@@ -224,6 +224,24 @@
       }
     },
     {
+      "name": "notifications.message.updated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "notifications.message.deleted",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic"
+      }
+    },
+    {
       "name": "notifications.chat.created",
       "vhost": "/",
       "durable": true,
@@ -273,7 +291,7 @@
     {
       "name": "notifications-dlx",
       "vhost": "/",
-      "pattern": "^notifications\\.(comment|post|user)\\.",
+      "pattern": "^notifications\\.(comment|post|user|message|chat)\\.",
       "apply-to": "queues",
       "definition": {
         "dead-letter-exchange": "dead-letter.events"
@@ -434,6 +452,22 @@
       "destination": "notifications.message.created",
       "destination_type": "queue",
       "routing_key": "message.created",
+      "arguments": {}
+    },
+    {
+      "source": "message.events",
+      "vhost": "/",
+      "destination": "notifications.message.updated",
+      "destination_type": "queue",
+      "routing_key": "message.updated",
+      "arguments": {}
+    },
+    {
+      "source": "message.events",
+      "vhost": "/",
+      "destination": "notifications.message.deleted",
+      "destination_type": "queue",
+      "routing_key": "message.deleted",
       "arguments": {}
     },
     {

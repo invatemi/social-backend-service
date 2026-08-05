@@ -22,6 +22,17 @@ export const getRefreshCookieOptions = (): CookieOptions => {
   };
 };
 
+export const getAccountSessionCookieOptions = (): CookieOptions => {
+  const config = getConfig();
+  return {
+    httpOnly: true,
+    secure: config.refreshCookieSecure,
+    sameSite: parseSameSite(config.refreshCookieSameSite),
+    path: config.refreshCookiePath,
+    maxAge: config.accountSessionCookieMaxAgeDays * 24 * 60 * 60 * 1000,
+  };
+};
+
 export const setRefreshCookie = (res: Response, refreshToken: string): void => {
   const config = getConfig();
   res.cookie(config.refreshCookieName, refreshToken, getRefreshCookieOptions());
@@ -37,8 +48,29 @@ export const clearRefreshCookie = (res: Response): void => {
   });
 };
 
+export const setAccountSessionCookie = (res: Response, accountSession: string): void => {
+  const config = getConfig();
+  res.cookie(config.accountSessionCookieName, accountSession, getAccountSessionCookieOptions());
+};
+
+export const clearAccountSessionCookie = (res: Response): void => {
+  const config = getConfig();
+  res.clearCookie(config.accountSessionCookieName, {
+    httpOnly: true,
+    secure: config.refreshCookieSecure,
+    sameSite: parseSameSite(config.refreshCookieSameSite),
+    path: config.refreshCookiePath,
+  });
+};
+
 export const getRefreshTokenFromRequest = (req: Request): string | undefined => {
   const config = getConfig();
   const cookieValue = req.cookies?.[config.refreshCookieName];
+  return typeof cookieValue === 'string' && cookieValue.length > 0 ? cookieValue : undefined;
+};
+
+export const getAccountSessionFromRequest = (req: Request): string | undefined => {
+  const config = getConfig();
+  const cookieValue = req.cookies?.[config.accountSessionCookieName];
   return typeof cookieValue === 'string' && cookieValue.length > 0 ? cookieValue : undefined;
 };

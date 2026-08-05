@@ -45,3 +45,27 @@ export class ForbiddenError extends AuthError {
     this.name = 'ForbiddenError';
   }
 }
+
+/** Device account session недействительна или истекла. */
+export class InvalidAccountSessionError extends AuthError {
+  constructor(message: string = 'Invalid or expired account session') {
+    super(message, 'INVALID_ACCOUNT_SESSION');
+    this.name = 'InvalidAccountSessionError';
+  }
+}
+
+/** Аккаунт уже добавлен в vault этого устройства. */
+export class AccountAlreadyLinkedError extends AuthError {
+  constructor(message: string = 'Account is already linked on this device') {
+    super(message, 'ACCOUNT_ALREADY_LINKED');
+    this.name = 'AccountAlreadyLinkedError';
+  }
+}
+
+/** Запрошенный аккаунт отсутствует в vault устройства. */
+export class AccountNotLinkedError extends AuthError {
+  constructor(message: string = 'Account is not linked on this device') {
+    super(message, 'ACCOUNT_NOT_LINKED');
+    this.name = 'AccountNotLinkedError';
+  }
+}

@@ -66,11 +66,13 @@ services:
       - "60"
       - "1000"
       - --maxmemory
-      - ${REDIS_MAXMEMORY:-256mb}
+      - ${REDIS_MAXMEMORY:-1gb}
       - --maxmemory-policy
       - ${REDIS_MAXMEMORY_POLICY:-allkeys-lru}
     volumes:
       - redis-data:/data
+    mem_limit: ${REDIS_MEM_LIMIT:-1536m}
+    cpus: ${REDIS_CPUS:-1.0}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -224,9 +226,15 @@ services:
       RABBITMQ_CONNECT_MAX_ATTEMPTS: 30
       RABBITMQ_CONNECT_RETRY_DELAY_MS: 2000
       RABBITMQ_CONNECT_MAX_RETRY_DELAY_MS: 10000
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      RATE_LIMIT_REFRESH_MAX: ${RATE_LIMIT_REFRESH_MAX:-30}
+      RATE_LIMIT_REFRESH_WINDOW_MS: ${RATE_LIMIT_REFRESH_WINDOW_MS:-60000}
+    mem_limit: ${AUTH_MEM_LIMIT:-512m}
+    cpus: ${AUTH_CPUS:-0.5}
     depends_on:
       auth-db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');const p=process.env.PORT||3001;const r=h.get('http://127.0.0.1:'+p+'/health',res=>process.exit(res.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.setTimeout(2000,()=>process.exit(1));\""]
       interval: 10s
@@ -439,9 +447,15 @@ services:
       DEFAULT_PAGE_SIZE: 50
       DB_CONNECT_MAX_ATTEMPTS: ${DB_CONNECT_MAX_ATTEMPTS:-10}
       DB_CONNECT_RETRY_DELAY_MS: ${DB_CONNECT_RETRY_DELAY_MS:-2000}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      RATE_LIMIT_SEND_MAX: ${RATE_LIMIT_SEND_MAX:-60}
+      RATE_LIMIT_SEND_WINDOW_MS: ${RATE_LIMIT_SEND_WINDOW_MS:-60000}
+    mem_limit: ${MSG_MEM_LIMIT:-768m}
+    cpus: ${MSG_CPUS:-1.0}
     depends_on:
       msg-db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
       social-auth-service: { condition: service_healthy }
       social-user-service: { condition: service_healthy }
       minio: { condition: service_healthy }
@@ -485,6 +499,7 @@ services:
       USER_SERVICE_TIMEOUT_MS: ${USER_SERVICE_TIMEOUT_MS:-3000}
       # Messaging realtime (message:new, chat:*) for Vite origin — same list as KrakenD CORS_ORIGINS
       SOCKET_CORS_ORIGIN: ${CORS_ORIGINS:-http://localhost:5173}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       DB_HOST: ${NOTIF_DB_HOST:-notif-db}
       DB_PORT: 5432
       DB_NAME: ${NOTIF_DB_NAME}
@@ -519,12 +534,17 @@ services:
       QUEUE_PHOTO_CREATED: notifications.user.photo.created
       QUEUE_PHOTO_DELETED: notifications.user.photo.deleted
       QUEUE_MESSAGE_CREATED: notifications.message.created
+      QUEUE_MESSAGE_UPDATED: notifications.message.updated
+      QUEUE_MESSAGE_DELETED: notifications.message.deleted
       QUEUE_CHAT_CREATED: notifications.chat.created
       QUEUE_CHAT_DELETED: notifications.chat.deleted
       QUEUE_CHAT_READ: notifications.chat.read
+    mem_limit: ${NOTIF_MEM_LIMIT:-1024m}
+    cpus: ${NOTIF_CPUS:-1.0}
     depends_on:
       notif-db: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
       social-user-service: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const h=require('http');const p=process.env.PORT||3005;const r=h.get('http://127.0.0.1:'+p+'/health',res=>process.exit(res.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.setTimeout(2000,()=>process.exit(1));\""]

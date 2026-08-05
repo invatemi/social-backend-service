@@ -80,11 +80,17 @@ export interface AuthServiceConfig {
   rateLimitLoginWindowMs: number;
   rateLimitRegisterMax: number;
   rateLimitRegisterWindowMs: number;
+  rateLimitRefreshMax: number;
+  rateLimitRefreshWindowMs: number;
+  redisUrl: string;
   refreshCookieName: string;
   refreshCookiePath: string;
   refreshCookieSameSite: string;
   refreshCookieSecure: boolean;
   refreshCookieMaxAgeDays: number;
+  accountSessionCookieName: string;
+  accountSessionCookieMaxAgeDays: number;
+  accountSessionTokenBytes: number;
   databaseUrl: string;
   rabbitmqUrl: string;
   jwtSecret: string;
@@ -124,6 +130,9 @@ export const getConfig = (): AuthServiceConfig => {
       rateLimitLoginWindowMs: optionalPositiveInt('RATE_LIMIT_LOGIN_WINDOW_MS', 60_000),
       rateLimitRegisterMax: optionalPositiveInt('RATE_LIMIT_REGISTER_MAX', 3),
       rateLimitRegisterWindowMs: optionalPositiveInt('RATE_LIMIT_REGISTER_WINDOW_MS', 3_600_000),
+      rateLimitRefreshMax: optionalPositiveInt('RATE_LIMIT_REFRESH_MAX', 30),
+      rateLimitRefreshWindowMs: optionalPositiveInt('RATE_LIMIT_REFRESH_WINDOW_MS', 60_000),
+      redisUrl: optionalString('REDIS_URL', ''),
       refreshCookieName: optionalString('REFRESH_COOKIE_NAME', 'refreshToken'),
       refreshCookiePath: optionalString('REFRESH_COOKIE_PATH', '/api/auth'),
       refreshCookieSameSite: optionalString('REFRESH_COOKIE_SAME_SITE', 'lax'),
@@ -132,6 +141,12 @@ export const getConfig = (): AuthServiceConfig => {
         process.env.NODE_ENV === 'production',
       ),
       refreshCookieMaxAgeDays: optionalPositiveInt('REFRESH_COOKIE_MAX_AGE_DAYS', 7),
+      accountSessionCookieName: optionalString('ACCOUNT_SESSION_COOKIE_NAME', 'accountSession'),
+      accountSessionCookieMaxAgeDays: optionalPositiveInt(
+        'ACCOUNT_SESSION_COOKIE_MAX_AGE_DAYS',
+        30,
+      ),
+      accountSessionTokenBytes: optionalPositiveInt('ACCOUNT_SESSION_TOKEN_BYTES', 48),
       databaseUrl: requireEnv('DATABASE_URL'),
       rabbitmqUrl: requireEnv('RABBITMQ_URL'),
       jwtSecret: requireMinLengthSecret('JWT_SECRET', 32),

@@ -6,6 +6,8 @@ type AmqpConnection = Awaited<ReturnType<typeof amqp.connect>>;
 
 export type MessageEventRoutingKey =
   | 'message.created'
+  | 'message.updated'
+  | 'message.deleted'
   | 'chat.created'
   | 'chat.deleted'
   | 'chat.read';
@@ -47,8 +49,22 @@ export interface ChatReadPayload {
   timestamp: string;
 }
 
+export interface MessageUpdatedPayload extends MessageCreatedPayload {
+  editedAt?: string | null;
+  forwardedFromId?: number | null;
+}
+
+export interface MessageDeletedPayload {
+  id: number;
+  chatId: number;
+  participantIds: number[];
+  timestamp: string;
+}
+
 export type EventPayload =
   | MessageCreatedPayload
+  | MessageUpdatedPayload
+  | MessageDeletedPayload
   | ChatCreatedPayload
   | ChatDeletedPayload
   | ChatReadPayload;

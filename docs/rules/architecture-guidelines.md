@@ -96,13 +96,13 @@ services/<name>/
   .env.example
 ```
 
-`message-service` пока не следует полному шаблону — см. рекомендации в `Agent.md`.
+`message-service` следует шаблону сервиса (config/health/DB, event bus publish, shared security copy). Consumers живут в notifications-service.
 
 ## Надёжность и эксплуатация
 
 ### Health checks
 
-Стандарт: `GET /health` → `{ status, service, database? }`. В `auth`, `user`, `post`, `notifications` — проверка БД через `createHealthHandler`. В `message-service` — упрощённый ответ без проверки БД в payload.
+Стандарт: `GET /health` → `{ status, service, database? }`. Все сервисы (`auth`, `user`, `post`, `message`, `notifications`) проверяют БД через `createHealthHandler`.
 
 ### Graceful shutdown
 
@@ -153,5 +153,6 @@ Retry с экспоненциальной задержкой (`RABBITMQ_CONNECT_
 ## Что не входит в репозиторий
 
 - Единый npm workspace для middleware; вместо этого — канонический модуль `shared/security` (копируется в сервисы при `prebuild`).
-- Единый OpenAPI-спек на весь API (маршруты описаны в KrakenD template).
+- OpenAPI: `openapi/social-backend.openapi.yaml` (маршруты также в KrakenD template).
+- Horizontal scale: Redis adapter для Socket.IO, Redis rate limits (auth/messages), resource limits в compose; sticky sessions / LB — ops checklist.
 - CI/CD pipelines (`.github/workflows` отсутствует).

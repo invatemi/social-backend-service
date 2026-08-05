@@ -188,6 +188,53 @@ paths:
       responses:
         '200':
           description: Flat MessageData with attachments
+  /api/messages/forward:
+    post:
+      tags: [Messages]
+      summary: Forward messages to one or more chats
+      operationId: forwardMessages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messageIds, targetChatIds]
+              properties:
+                messageIds:
+                  type: array
+                  items: { type: integer }
+                  minItems: 1
+                  maxItems: 50
+                targetChatIds:
+                  type: array
+                  items: { type: integer }
+                  minItems: 1
+                  maxItems: 20
+      responses:
+        '200':
+          description: Forwarded MessageData list
+  /api/messages/bulk:
+    delete:
+      tags: [Messages]
+      summary: Bulk delete own messages
+      operationId: deleteMessagesBulk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messageIds]
+              properties:
+                messageIds:
+                  type: array
+                  items: { type: integer }
+                  minItems: 1
+                  maxItems: 100
+      responses:
+        '200':
+          description: Deleted ids
   /api/messages/{chatId}:
     get:
       tags: [Messages]
@@ -207,6 +254,56 @@ paths:
       responses:
         '200':
           description: Messages list with attachments
+    patch:
+      tags: [Messages]
+      summary: Edit own message content and attachments
+      operationId: editMessage
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          description: Message id
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content: { type: string, maxLength: 4000 }
+                removeAttachmentIds:
+                  type: array
+                  items: { type: integer }
+                  maxItems: 50
+                attachments:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: object
+                    required: [url, fileName, mimeType, sizeBytes, objectKey]
+                    properties:
+                      url: { type: string }
+                      fileName: { type: string }
+                      mimeType: { type: string }
+                      sizeBytes: { type: integer }
+                      objectKey: { type: string }
+      responses:
+        '200':
+          description: Updated MessageData
+    delete:
+      tags: [Messages]
+      summary: Delete own message
+      operationId: deleteMessage
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          description: Message id
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Deleted
   /api/notifications/health:
     get:
       tags: [Health]
@@ -328,28 +425,125 @@ paths:
       summary: Logout by invalidating a refresh token
       operationId: logoutUser
       security: []
+      responses:
+        '200':
+          description: Logout completed, or auto-switched to another vault account.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MessageResponse'
+                  - $ref: '#/components/schemas/LogoutSwitchResponse'
+              examples:
+                fullLogout:
+                  value:
+                    message: Logged out successfully
+                    switched: false
+                autoSwitch:
+                  value:
+                    switched: true
+                    accessToken: '{{accessToken}}'
+                    user:
+                      id: 2
+                      username: bob
+                      email: bob@example.com
+                      role: user
+                    accounts:
+                      - id: 2
+                        username: bob
+                        email: bob@example.com
+                        isActive: true
+        '400':
+          $ref: '#/components/responses/AuthErrorResponse'
+
+  /api/auth/accounts:
+    get:
+      tags: [Auth]
+      summary: List accounts linked on this device vault
+      operationId: listAuthAccounts
+      security: []
+      responses:
+        '200':
+          description: Linked accounts for the current device session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountsListResponse'
+              examples:
+                default:
+                  value:
+                    accounts:
+                      - id: 1
+                        username: alice
+                        email: alice@example.com
+                        isActive: true
+                      - id: 2
+                        username: bob
+                        email: bob@example.com
+                        isActive: false
+        '401':
+          $ref: '#/components/responses/AuthErrorResponse'
+
+  /api/auth/accounts/add:
+    post:
+      tags: [Auth]
+      summary: Add another account to the device vault
+      operationId: addAuthAccount
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RefreshTokenRequest'
+              $ref: '#/components/schemas/LoginRequest'
             examples:
               default:
                 value:
-                  refreshToken: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+                  email: bob@example.com
+                  password: password123
       responses:
         '200':
-          description: Logout completed.
+          description: New account activated; previous account parked in vault.
+          headers:
+            Set-Cookie:
+              description: Rotated refreshToken and accountSession HttpOnly cookies
+              schema:
+                type: string
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MessageResponse'
-              examples:
-                default:
-                  value:
-                    message: Logged out successfully
-        '400':
+                $ref: '#/components/schemas/AccountSessionResponse'
+        '401':
+          $ref: '#/components/responses/AuthErrorResponse'
+        '409':
+          $ref: '#/components/responses/AuthErrorResponse'
+
+  /api/auth/accounts/switch:
+    post:
+      tags: [Auth]
+      summary: Switch active account within the device vault
+      operationId: switchAuthAccount
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchAccountRequest'
+            examples:
+              default:
+                value:
+                  userId: 2
+      responses:
+        '200':
+          description: Active account switched.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSessionResponse'
+        '401':
+          $ref: '#/components/responses/AuthErrorResponse'
+        '404':
           $ref: '#/components/responses/AuthErrorResponse'
 
   /api/users/me:
@@ -1419,6 +1613,75 @@ components:
       properties:
         message:
           type: string
+        switched:
+          type: boolean
+          example: false
+    AccountSummary:
+      type: object
+      required: [id, username, email, isActive]
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: alice
+        email:
+          type: string
+          format: email
+          example: alice@example.com
+        isActive:
+          type: boolean
+          example: true
+    AccountsListResponse:
+      type: object
+      required: [accounts]
+      properties:
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountSummary'
+    AccountSessionResponse:
+      type: object
+      required: [accessToken, user, accounts]
+      properties:
+        accessToken:
+          type: string
+          example: '{{accessToken}}'
+        user:
+          type: object
+          required: [id, username, email, role]
+          properties:
+            id:
+              type: integer
+            username:
+              type: string
+            email:
+              type: string
+              format: email
+            role:
+              type: string
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountSummary'
+    LogoutSwitchResponse:
+      allOf:
+        - $ref: '#/components/schemas/AccountSessionResponse'
+        - type: object
+          required: [switched]
+          properties:
+            switched:
+              type: boolean
+              example: true
+    SwitchAccountRequest:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: integer
+          minimum: 1
+          example: 2
     SuccessMessageResponse:
       allOf:
         - $ref: '#/components/schemas/SuccessEnvelope'

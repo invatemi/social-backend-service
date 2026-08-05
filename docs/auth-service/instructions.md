@@ -41,6 +41,9 @@ npm run dev
 | `ACCESS_TOKEN_EXPIRY` | TTL access token (например `15m`) |
 | `REFRESH_TOKEN_BYTES` | Длина refresh token (hex = bytes * 2) |
 | `REFRESH_TOKEN_PEPPER` | Секрет для lookup-хэша refresh token (мин. 32 символа, отдельно от `JWT_SECRET`) |
+| `ACCOUNT_SESSION_COOKIE_NAME` | Имя cookie device vault (`accountSession`) |
+| `ACCOUNT_SESSION_COOKIE_MAX_AGE_DAYS` | TTL cookie vault (по умолчанию `30`) |
+| `ACCOUNT_SESSION_TOKEN_BYTES` | Длина plaintext account session token |
 | `USER_EVENTS_EXCHANGE` | Exchange для `user.registered` |
 | `BCRYPT_SALT_ROUNDS` | Хеширование пароля |
 | `DEFAULT_USER_ROLE_ID` | roleId при регистрации |
@@ -65,13 +68,27 @@ npm run dev
 
 ### Logout
 
-`POST /api/auth/logout` с `refreshToken` — удаление из БД.
+`POST /api/auth/logout` (cookie `refreshToken`, опционально `accountSession`):
+
+- Удаляет текущий аккаунт из vault и revoke его refresh.
+- Если в vault остались другие аккаунты — auto-switch на последний `lastActiveAt`, возвращает новую сессию (`switched: true`).
+- Иначе очищает обе cookies (`switched: false`).
+
+### Multi-account vault
+
+1. `POST /api/auth/accounts/add` — логин второго аккаунта при активной сессии; создаёт/использует `accountSession`, паркует текущий refresh, активирует новый.
+2. `GET /api/auth/accounts` — список `{ id, username, email, isActive }`.
+3. `POST /api/auth/accounts/switch` с `{ userId }` — мгновенное переключение без пароля.
+
+Cookies: `Path=/api/auth`, HttpOnly. Имена: `refreshToken`, `accountSession` (см. `.env.example`).
 
 ## Бизнес-правила
 
 - Email нормализуется (lowercase, trim).
 - Пароль и username валидируются по `MIN_PASSWORD_LENGTH`, `MIN_USERNAME_LENGTH`.
 - Refresh token: проверка длины и срока `expiresAt`; в БД хранится только SHA-256 хэш + соль (plaintext — в HttpOnly cookie).
+- При ротации refresh обновляется `device_session_accounts.refresh_token_id`, если токен привязан к vault.
+- Один userId не может быть дважды в одном device vault (`ACCOUNT_ALREADY_LINKED`).
 - При ошибке publish `user.registered` регистрация **не откатывается** (логируется ошибка).
 
 ## Health

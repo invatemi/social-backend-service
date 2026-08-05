@@ -25,6 +25,7 @@ const sendMessageSchema = z
     chatId: z.number().int().positive(),
     content: z.string().max(4000).optional().default(''),
     attachments: z.array(attachmentSchema).max(5).optional(),
+    replyToId: z.number().int().positive().optional(),
   })
   .refine(
     (body) => Boolean(body.content?.trim()) || (body.attachments?.length ?? 0) > 0,
@@ -43,12 +44,41 @@ const attachmentsQuerySchema = z.object({
   offset: z.string().optional(),
 });
 
+const editMessageSchema = z
+  .object({
+    content: z.string().max(4000).optional(),
+    removeAttachmentIds: z.array(z.number().int().positive()).max(50).optional(),
+    attachments: z.array(attachmentSchema).max(5).optional(),
+  })
+  .refine(
+    (body) =>
+      body.content !== undefined ||
+      (body.removeAttachmentIds?.length ?? 0) > 0 ||
+      (body.attachments?.length ?? 0) > 0,
+    { message: 'No edit changes provided', path: ['content'] }
+  );
+
+const forwardMessagesSchema = z.object({
+  messageIds: z.array(z.number().int().positive()).min(1).max(50),
+  targetChatIds: z.array(z.number().int().positive()).min(1).max(20),
+});
+
+const bulkDeleteSchema = z.object({
+  messageIds: z.array(z.number().int().positive()).min(1).max(100),
+});
+
 const getPrisma = (req: KrakenDRequest): PrismaClient => (req as any).prisma as PrismaClient;
 
 const parseChatId = (raw: string): number | null => {
   const chatId = Number.parseInt(raw, 10);
   if (!Number.isInteger(chatId) || chatId <= 0) return null;
   return chatId;
+};
+
+const parseMessageId = (raw: string): number | null => {
+  const messageId = Number.parseInt(raw, 10);
+  if (!Number.isInteger(messageId) || messageId <= 0) return null;
+  return messageId;
 };
 
 router.get('/chats', krakendAuthMiddleware, async (req: KrakenDRequest, res, next) => {
@@ -188,8 +218,78 @@ router.post('/send', krakendAuthMiddleware, async (req: KrakenDRequest, res, nex
       chatId: body.chatId,
       content: body.content ?? '',
       attachments: body.attachments,
+      replyToId: body.replyToId,
     });
     res.status(200).json(message);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/forward', krakendAuthMiddleware, async (req: KrakenDRequest, res, next) => {
+  try {
+    const body = forwardMessagesSchema.parse(req.body);
+    const service = new MessageService(getPrisma(req));
+    const result = await service.forwardMessages({
+      userId: req.user!.userId,
+      messageIds: body.messageIds,
+      targetChatIds: body.targetChatIds,
+    });
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/bulk', krakendAuthMiddleware, async (req: KrakenDRequest, res, next) => {
+  try {
+    const body = bulkDeleteSchema.parse(req.body);
+    const service = new MessageService(getPrisma(req));
+    const result = await service.deleteMessagesBulk(body.messageIds, req.user!.userId);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/:messageId', krakendAuthMiddleware, async (req: KrakenDRequest, res, next) => {
+  try {
+    const messageId = parseMessageId(String(req.params.messageId));
+    if (!messageId) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid message id', field: 'messageId' },
+      });
+      return;
+    }
+
+    const body = editMessageSchema.parse(req.body);
+    const service = new MessageService(getPrisma(req));
+    const message = await service.editMessage(messageId, req.user!.userId, {
+      content: body.content,
+      removeAttachmentIds: body.removeAttachmentIds,
+      attachments: body.attachments,
+    });
+    res.status(200).json(message);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:messageId', krakendAuthMiddleware, async (req: KrakenDRequest, res, next) => {
+  try {
+    const messageId = parseMessageId(String(req.params.messageId));
+    if (!messageId) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid message id', field: 'messageId' },
+      });
+      return;
+    }
+
+    const service = new MessageService(getPrisma(req));
+    const result = await service.deleteMessage(messageId, req.user!.userId);
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }

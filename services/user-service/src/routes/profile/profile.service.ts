@@ -204,6 +204,11 @@ export class ProfileService {
   /** Returns user IDs that should receive realtime updates for an author's posts. */
   async getPostAudienceUserIds(userId: unknown): Promise<number[]> {
     const id = validateUserId(userId);
+    const cacheKey = `post-audience:${id}`;
+    const cached = await cache.get<number[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -232,7 +237,9 @@ export class ProfileService {
       audienceIds.add(follow.followingId);
     }
 
-    return [...audienceIds];
+    const result = [...audienceIds];
+    await cache.set(cacheKey, result, 180);
+    return result;
   }
 
   /** Returns minimal author data for a batch of user IDs (service-to-service). */

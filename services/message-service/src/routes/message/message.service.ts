@@ -8,14 +8,39 @@ import type {
   Message,
   MessageAttachment,
 } from '../../generated/prisma';
+import { Prisma } from '../../generated/prisma';
 import { getConfig } from '../../config/env';
 import { fetchAuthorsByIds, type UserAuthor } from '../../clients';
 import { eventBus } from '../../middleware/event-bus';
 import {
   ChatNotFoundError,
   MessageForbiddenError,
+  MessageNotFoundError,
   MessageValidationError,
 } from './message.errors';
+
+/** Debounce chat.read fan-out per (chatId, userId). */
+const CHAT_READ_THROTTLE_MS = 3000;
+const chatReadPublishAt = new Map<string, number>();
+
+const shouldPublishChatRead = (chatId: number, userId: number): boolean => {
+  const key = `${chatId}:${userId}`;
+  const now = Date.now();
+  const last = chatReadPublishAt.get(key) ?? 0;
+  if (now - last < CHAT_READ_THROTTLE_MS) {
+    return false;
+  }
+  chatReadPublishAt.set(key, now);
+
+  // Bound map growth
+  if (chatReadPublishAt.size > 10_000) {
+    const cutoff = now - CHAT_READ_THROTTLE_MS * 2;
+    for (const [entryKey, ts] of chatReadPublishAt) {
+      if (ts < cutoff) chatReadPublishAt.delete(entryKey);
+    }
+  }
+  return true;
+};
 
 export type MessageAuthorDto = {
   id: number;
@@ -38,11 +63,22 @@ export type MessageAttachmentData = {
   createdAt: string;
 };
 
+export type MessageReplyPreview = {
+  id: number;
+  content: string;
+  createdAt: string;
+  author: MessageAuthorDto;
+};
+
 export type MessageData = {
   id: number;
   chatId: number;
   content: string;
   createdAt: string;
+  editedAt?: string | null;
+  forwardedFromId?: number | null;
+  replyToId?: number | null;
+  replyTo?: MessageReplyPreview | null;
   isRead?: boolean;
   author: MessageAuthorDto;
   attachments: MessageAttachmentData[];
@@ -339,18 +375,29 @@ export class MessageService {
     }
     const authors = await fetchAuthorsByIds([...allUserIds]);
 
+    const unreadByChat = new Map<number, number>();
+    if (chatIds.length > 0) {
+      const unreadRows = await this.prisma.$queryRaw<
+        Array<{ chat_id: number; unread_count: bigint }>
+      >`
+        SELECT m.chat_id, COUNT(*)::bigint AS unread_count
+        FROM messages m
+        INNER JOIN chat_participants cp
+          ON cp.chat_id = m.chat_id AND cp.user_id = ${userId}
+        WHERE m.chat_id IN (${Prisma.join(chatIds)})
+          AND m.author_id <> ${userId}
+          AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+        GROUP BY m.chat_id
+      `;
+      for (const row of unreadRows) {
+        unreadByChat.set(Number(row.chat_id), Number(row.unread_count));
+      }
+    }
+
     const data: ChatData[] = [];
     for (const membership of memberships) {
       const last = lastByChat.get(membership.chatId) ?? null;
-      const unreadCount = await this.prisma.message.count({
-        where: {
-          chatId: membership.chatId,
-          authorId: { not: userId },
-          ...(membership.lastReadAt
-            ? { createdAt: { gt: membership.lastReadAt } }
-            : {}),
-        },
-      });
+      const unreadCount = unreadByChat.get(membership.chatId) ?? 0;
 
       data.push(
         await this.formatChat(membership.chat, userId, authors, last, unreadCount)
@@ -506,7 +553,10 @@ export class MessageService {
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
-      include: { attachments: { orderBy: { id: 'asc' } } },
+      include: {
+        attachments: { orderBy: { id: 'asc' } },
+        replyTo: true,
+      },
     });
 
     // Mark as read when opening/fetching the latest page (no before cursor)
@@ -517,25 +567,27 @@ export class MessageService {
         data: { lastReadAt },
       });
 
-      const participantIds = (
-        await this.prisma.chatParticipant.findMany({
-          where: { chatId },
-          select: { userId: true },
-        })
-      ).map((p) => p.userId);
+      if (shouldPublishChatRead(chatId, userId)) {
+        const participantIds = (
+          await this.prisma.chatParticipant.findMany({
+            where: { chatId },
+            select: { userId: true },
+          })
+        ).map((p) => p.userId);
 
-      const notifyIds = participantIds.filter((id) => id !== userId);
-      if (notifyIds.length > 0) {
-        try {
-          await eventBus.publish('chat.read', {
-            chatId,
-            readerId: userId,
-            lastReadAt: lastReadAt.toISOString(),
-            participantIds: notifyIds,
-            timestamp: lastReadAt.toISOString(),
-          });
-        } catch (error) {
-          console.log('[EventBus] Failed to publish chat.read:', error);
+        const notifyIds = participantIds.filter((id) => id !== userId);
+        if (notifyIds.length > 0) {
+          try {
+            await eventBus.publish('chat.read', {
+              chatId,
+              readerId: userId,
+              lastReadAt: lastReadAt.toISOString(),
+              participantIds: notifyIds,
+              timestamp: lastReadAt.toISOString(),
+            });
+          } catch (error) {
+            console.log('[EventBus] Failed to publish chat.read:', error);
+          }
         }
       }
     }
@@ -544,26 +596,410 @@ export class MessageService {
     const other = participants.find((p) => p.userId !== userId);
     const otherLastRead = other?.lastReadAt ?? null;
 
-    const authorIds = [...new Set(messages.map((m) => m.authorId))];
+    const authorIds = [
+      ...new Set([
+        ...messages.map((m) => m.authorId),
+        ...messages.flatMap((m) => (m.replyTo ? [m.replyTo.authorId] : [])),
+      ]),
+    ];
     const authors = await fetchAuthorsByIds(authorIds);
 
     const data = messages
       .slice()
       .reverse()
-      .map((msg) => ({
-        id: msg.id,
-        chatId: msg.chatId,
-        content: msg.content,
-        createdAt: msg.createdAt.toISOString(),
+      .map((msg) => this.toMessageData(msg, authors, {
         isRead:
           msg.authorId === userId
             ? otherLastRead != null && msg.createdAt <= otherLastRead
             : true,
-        author: authorFromMap(msg.authorId, authors),
-        attachments: msg.attachments.map(formatAttachment),
       }));
 
     return { data, pagination: { limit, offset: 0 } };
+  }
+
+  private toMessageData(
+    msg: Message & {
+      attachments: MessageAttachment[];
+      replyTo?: Message | null;
+    },
+    authors: Map<number, UserAuthor>,
+    extras: { isRead?: boolean } = {}
+  ): MessageData {
+    return {
+      id: msg.id,
+      chatId: msg.chatId,
+      content: msg.content,
+      createdAt: msg.createdAt.toISOString(),
+      editedAt: msg.editedAt ? msg.editedAt.toISOString() : null,
+      forwardedFromId: msg.forwardedFromId ?? null,
+      replyToId: msg.replyToId ?? null,
+      replyTo: msg.replyTo
+        ? {
+            id: msg.replyTo.id,
+            content: msg.replyTo.content,
+            createdAt: msg.replyTo.createdAt.toISOString(),
+            author: authorFromMap(msg.replyTo.authorId, authors),
+          }
+        : null,
+      isRead: extras.isRead,
+      author: authorFromMap(msg.authorId, authors),
+      attachments: msg.attachments.map(formatAttachment),
+    };
+  }
+
+  private async getOwnedMessage(
+    messageId: number,
+    userId: number
+  ): Promise<Message & { attachments: MessageAttachment[] }> {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: { attachments: { orderBy: { id: 'asc' } } },
+    });
+    if (!message) {
+      throw new MessageNotFoundError();
+    }
+    await this.assertParticipant(message.chatId, userId);
+    if (message.authorId !== userId) {
+      throw new MessageForbiddenError('Only the author can modify this message');
+    }
+    return message;
+  }
+
+  private async publishMessageDeleted(
+    messageId: number,
+    chatId: number,
+    participantIds: number[]
+  ): Promise<void> {
+    try {
+      await eventBus.publish('message.deleted', {
+        id: messageId,
+        chatId,
+        participantIds,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.log('[EventBus] Failed to publish message.deleted:', error);
+    }
+  }
+
+  private async refreshChatLastMessageAt(chatId: number): Promise<void> {
+    const latest = await this.prisma.message.findFirst({
+      where: { chatId },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    await this.prisma.chat.update({
+      where: { id: chatId },
+      data: { lastMessageAt: latest?.createdAt ?? null },
+    });
+  }
+
+  async editMessage(
+    messageId: number,
+    userId: number,
+    input: {
+      content?: string;
+      removeAttachmentIds?: number[];
+      attachments?: AttachmentInput[];
+    }
+  ): Promise<MessageData> {
+    const config = getConfig();
+    const existing = await this.getOwnedMessage(messageId, userId);
+
+    const removeIds = [...new Set(input.removeAttachmentIds ?? [])];
+    const newAttachments = (input.attachments ?? []).map((a, i) =>
+      this.validateAttachmentInput(existing.chatId, a, i)
+    );
+
+    if (removeIds.length > 0) {
+      const ownedIds = new Set(existing.attachments.map((a) => a.id));
+      const invalid = removeIds.filter((id) => !ownedIds.has(id));
+      if (invalid.length > 0) {
+        throw new MessageValidationError(
+          'Cannot remove attachments that do not belong to this message',
+          'removeAttachmentIds'
+        );
+      }
+    }
+
+    const remainingCount =
+      existing.attachments.length - removeIds.length + newAttachments.length;
+    if (remainingCount > config.maxAttachmentsPerMessage) {
+      throw new MessageValidationError(
+        `Message can have at most ${config.maxAttachmentsPerMessage} attachments`,
+        'attachments'
+      );
+    }
+    if (remainingCount < 0) {
+      throw new MessageValidationError('Invalid attachment removal', 'removeAttachmentIds');
+    }
+
+    const nextContent =
+      input.content !== undefined ? input.content.trim() : existing.content.trim();
+    if (nextContent.length > 4000) {
+      throw new MessageValidationError('Message is too long', 'content');
+    }
+    if (!nextContent && remainingCount === 0) {
+      throw new MessageValidationError(
+        'Message content or attachments are required',
+        'content'
+      );
+    }
+
+    const editedAt = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (removeIds.length > 0) {
+        await tx.messageAttachment.deleteMany({
+          where: { messageId, id: { in: removeIds } },
+        });
+      }
+
+      if (newAttachments.length > 0) {
+        await tx.messageAttachment.createMany({
+          data: newAttachments.map((a) => ({
+            messageId,
+            chatId: existing.chatId,
+            kind: a.kind,
+            fileName: a.fileName,
+            mimeType: a.mimeType,
+            sizeBytes: a.sizeBytes,
+            url: a.url,
+            objectKey: a.objectKey,
+          })),
+        });
+      }
+
+      return tx.message.update({
+        where: { id: messageId },
+        data: {
+          content: nextContent,
+          editedAt,
+        },
+        include: { attachments: { orderBy: { id: 'asc' } } },
+      });
+    });
+
+    const participants = await this.prisma.chatParticipant.findMany({
+      where: { chatId: updated.chatId },
+    });
+    const participantIds = participants.map((p) => p.userId);
+    const authors = await fetchAuthorsByIds([userId]);
+    const dto = this.toMessageData(updated, authors);
+
+    try {
+      await eventBus.publish('message.updated', {
+        ...dto,
+        participantIds,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.log('[EventBus] Failed to publish message.updated:', error);
+    }
+
+    return dto;
+  }
+
+  async deleteMessage(
+    messageId: number,
+    userId: number
+  ): Promise<{ message: string; status: string; id: number; chatId: number }> {
+    const existing = await this.getOwnedMessage(messageId, userId);
+    const chatId = existing.chatId;
+
+    const participants = await this.prisma.chatParticipant.findMany({
+      where: { chatId },
+    });
+    const participantIds = participants.map((p) => p.userId);
+
+    await this.prisma.message.delete({ where: { id: messageId } });
+    await this.refreshChatLastMessageAt(chatId);
+    await this.publishMessageDeleted(messageId, chatId, participantIds);
+
+    return { message: 'Message deleted', status: 'ok', id: messageId, chatId };
+  }
+
+  async deleteMessagesBulk(
+    messageIds: number[],
+    userId: number
+  ): Promise<{ message: string; status: string; deletedIds: number[] }> {
+    const uniqueIds = [...new Set(messageIds)];
+    if (uniqueIds.length === 0) {
+      throw new MessageValidationError('messageIds is required', 'messageIds');
+    }
+    if (uniqueIds.length > 100) {
+      throw new MessageValidationError('At most 100 messages can be deleted', 'messageIds');
+    }
+
+    const messages = await this.prisma.message.findMany({
+      where: { id: { in: uniqueIds } },
+      include: { attachments: true },
+    });
+    if (messages.length !== uniqueIds.length) {
+      throw new MessageNotFoundError('One or more messages were not found');
+    }
+
+    const chatIds = [...new Set(messages.map((m) => m.chatId))];
+    for (const chatId of chatIds) {
+      await this.assertParticipant(chatId, userId);
+    }
+    for (const msg of messages) {
+      if (msg.authorId !== userId) {
+        throw new MessageForbiddenError('Only the author can delete these messages');
+      }
+    }
+
+    const participantsByChat = new Map<number, number[]>();
+    for (const chatId of chatIds) {
+      const participants = await this.prisma.chatParticipant.findMany({
+        where: { chatId },
+        select: { userId: true },
+      });
+      participantsByChat.set(
+        chatId,
+        participants.map((p) => p.userId)
+      );
+    }
+
+    await this.prisma.message.deleteMany({ where: { id: { in: uniqueIds } } });
+    for (const chatId of chatIds) {
+      await this.refreshChatLastMessageAt(chatId);
+    }
+
+    for (const msg of messages) {
+      await this.publishMessageDeleted(
+        msg.id,
+        msg.chatId,
+        participantsByChat.get(msg.chatId) ?? []
+      );
+    }
+
+    return {
+      message: 'Messages deleted',
+      status: 'ok',
+      deletedIds: uniqueIds,
+    };
+  }
+
+  async forwardMessages(input: {
+    userId: number;
+    messageIds: number[];
+    targetChatIds: number[];
+  }): Promise<{ message: string; data: MessageData[] }> {
+    const uniqueMessageIds = [...new Set(input.messageIds)];
+    const uniqueTargetChatIds = [...new Set(input.targetChatIds)];
+
+    if (uniqueMessageIds.length === 0) {
+      throw new MessageValidationError('messageIds is required', 'messageIds');
+    }
+    if (uniqueTargetChatIds.length === 0) {
+      throw new MessageValidationError('targetChatIds is required', 'targetChatIds');
+    }
+    if (uniqueMessageIds.length > 50) {
+      throw new MessageValidationError('At most 50 messages can be forwarded', 'messageIds');
+    }
+    if (uniqueTargetChatIds.length > 20) {
+      throw new MessageValidationError('At most 20 target chats allowed', 'targetChatIds');
+    }
+
+    const sources = await this.prisma.message.findMany({
+      where: { id: { in: uniqueMessageIds } },
+      include: { attachments: { orderBy: { id: 'asc' } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (sources.length !== uniqueMessageIds.length) {
+      throw new MessageNotFoundError('One or more messages were not found');
+    }
+
+    const sourceChatIds = [...new Set(sources.map((m) => m.chatId))];
+    for (const chatId of sourceChatIds) {
+      await this.assertParticipant(chatId, input.userId);
+    }
+    for (const chatId of uniqueTargetChatIds) {
+      await this.assertParticipant(chatId, input.userId);
+    }
+
+    const config = getConfig();
+    const createdMessages: Array<Message & { attachments: MessageAttachment[] }> = [];
+
+    for (const targetChatId of uniqueTargetChatIds) {
+      for (const source of sources) {
+        if (source.attachments.length > config.maxAttachmentsPerMessage) {
+          throw new MessageValidationError(
+            `At most ${config.maxAttachmentsPerMessage} attachments allowed`,
+            'attachments'
+          );
+        }
+
+        const created = await this.prisma.$transaction(async (tx) => {
+          const message = await tx.message.create({
+            data: {
+              chatId: targetChatId,
+              authorId: input.userId,
+              content: source.content,
+              forwardedFromId: source.id,
+              attachments:
+                source.attachments.length > 0
+                  ? {
+                      create: source.attachments.map((a) => ({
+                        chatId: targetChatId,
+                        kind: a.kind,
+                        fileName: a.fileName,
+                        mimeType: a.mimeType,
+                        sizeBytes: a.sizeBytes,
+                        url: a.url,
+                        objectKey: a.objectKey,
+                      })),
+                    }
+                  : undefined,
+            },
+            include: { attachments: { orderBy: { id: 'asc' } } },
+          });
+
+          await tx.chat.update({
+            where: { id: targetChatId },
+            data: { lastMessageAt: message.createdAt },
+          });
+
+          await tx.chatParticipant.update({
+            where: {
+              chatId_userId: { chatId: targetChatId, userId: input.userId },
+            },
+            data: { lastReadAt: message.createdAt },
+          });
+
+          return message;
+        });
+
+        createdMessages.push(created);
+      }
+    }
+
+    const authors = await fetchAuthorsByIds([input.userId]);
+    const data: MessageData[] = [];
+
+    for (const message of createdMessages) {
+      const participantIds = (
+        await this.prisma.chatParticipant.findMany({
+          where: { chatId: message.chatId },
+          select: { userId: true },
+        })
+      ).map((p) => p.userId);
+
+      const dto = this.toMessageData(message, authors, { isRead: false });
+      data.push(dto);
+
+      try {
+        await eventBus.publish('message.created', {
+          ...dto,
+          participantIds,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.log('[EventBus] Failed to publish message.created:', error);
+      }
+    }
+
+    return { message: 'Messages forwarded', data };
   }
 
   async getUploadUrl(
@@ -645,6 +1081,7 @@ export class MessageService {
     chatId: number;
     content: string;
     attachments?: AttachmentInput[];
+    replyToId?: number;
   }): Promise<MessageData> {
     const content = input.content.trim();
     const attachments = input.attachments ?? [];
@@ -665,6 +1102,17 @@ export class MessageService {
 
     await this.assertParticipant(input.chatId, input.userId);
 
+    let replyToId: number | undefined;
+    if (input.replyToId != null) {
+      const replySource = await this.prisma.message.findUnique({
+        where: { id: input.replyToId },
+      });
+      if (!replySource || replySource.chatId !== input.chatId) {
+        throw new MessageValidationError('Reply target message not found in this chat', 'replyToId');
+      }
+      replyToId = replySource.id;
+    }
+
     const validated = attachments.map((a, i) => this.validateAttachmentInput(input.chatId, a, i));
 
     const participants = await this.prisma.chatParticipant.findMany({
@@ -678,6 +1126,7 @@ export class MessageService {
           chatId: input.chatId,
           authorId: input.userId,
           content,
+          replyToId,
           attachments:
             validated.length > 0
               ? {
@@ -693,7 +1142,10 @@ export class MessageService {
                 }
               : undefined,
         },
-        include: { attachments: { orderBy: { id: 'asc' } } },
+        include: {
+          attachments: { orderBy: { id: 'asc' } },
+          replyTo: true,
+        },
       });
 
       await tx.chat.update({
@@ -709,16 +1161,12 @@ export class MessageService {
       return created;
     });
 
-    const authors = await fetchAuthorsByIds([input.userId]);
-    const dto: MessageData = {
-      id: message.id,
-      chatId: message.chatId,
-      content: message.content,
-      createdAt: message.createdAt.toISOString(),
-      isRead: false,
-      author: authorFromMap(input.userId, authors),
-      attachments: message.attachments.map(formatAttachment),
-    };
+    const authorIds = [
+      input.userId,
+      ...(message.replyTo ? [message.replyTo.authorId] : []),
+    ];
+    const authors = await fetchAuthorsByIds(authorIds);
+    const dto = this.toMessageData(message, authors, { isRead: false });
 
     try {
       await eventBus.publish('message.created', {

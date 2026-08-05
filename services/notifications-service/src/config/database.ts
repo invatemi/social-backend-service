@@ -10,7 +10,7 @@ export class Database {
 
   /** Создаёт пул соединений и Prisma-клиент. */
   constructor(connectionString: string) {
-    this.pool = new Pool({ connectionString });
+    this.pool = new Pool({ connectionString, max: 10, idleTimeoutMillis: 30_000 });
     const adapter = new PrismaPg(this.pool);
     this.prisma = new PrismaClient({ adapter });
   }

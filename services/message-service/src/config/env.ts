@@ -68,6 +68,9 @@ export interface MessageServiceConfig {
   s3ForcePathStyle: boolean;
   maxAttachmentBytes: number;
   maxAttachmentsPerMessage: number;
+  redisUrl: string;
+  rateLimitSendMax: number;
+  rateLimitSendWindowMs: number;
 }
 
 let configCache: MessageServiceConfig | null = null;
@@ -106,6 +109,10 @@ export const getConfig = (): MessageServiceConfig => {
       maxAttachmentBytes: Number.parseInt(process.env.MAX_ATTACHMENT_BYTES ?? '20971520', 10) || 20971520,
       maxAttachmentsPerMessage:
         Number.parseInt(process.env.MAX_ATTACHMENTS_PER_MESSAGE ?? '5', 10) || 5,
+      redisUrl: process.env.REDIS_URL ?? '',
+      rateLimitSendMax: Number.parseInt(process.env.RATE_LIMIT_SEND_MAX ?? '60', 10) || 60,
+      rateLimitSendWindowMs:
+        Number.parseInt(process.env.RATE_LIMIT_SEND_WINDOW_MS ?? '60000', 10) || 60_000,
     };
   }
 

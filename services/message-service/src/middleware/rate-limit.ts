@@ -5,11 +5,7 @@ import rateLimit, {
   type ClientRateLimitInfo,
 } from 'express-rate-limit';
 import { createClient, type RedisClientType } from 'redis';
-import type { AuthServiceConfig } from '../config';
-
-/**
- * Uses Redis store when REDIS_URL is set; otherwise in-memory (dev/single instance).
- */
+import { getConfig } from '../config/env';
 
 const rateLimitHandler: Options['handler'] = (req, res, _next, optionsUsed) => {
   const resetTime = (req as { rateLimit?: { resetTime?: Date } }).rateLimit?.resetTime;
@@ -92,19 +88,16 @@ class RedisRateLimitStore implements Store {
   }
 }
 
-const createRateLimiter = (
-  max: number,
-  windowMs: number,
-  redisUrl: string | undefined,
-  prefix: string
-): RateLimitRequestHandler => {
+/** Message send: 60 requests / minute per IP (Redis-backed when REDIS_URL set). */
+export const createMessageSendRateLimiter = (): RateLimitRequestHandler => {
+  const config = getConfig();
+  const windowMs = config.rateLimitSendWindowMs;
+  const max = config.rateLimitSendMax;
   const store =
-    redisUrl && redisUrl.length > 0
-      ? new RedisRateLimitStore(redisUrl, prefix)
+    config.redisUrl.length > 0
+      ? new RedisRateLimitStore(config.redisUrl, 'rl:messages:send')
       : undefined;
-  if (store) {
-    store.windowMs = windowMs;
-  }
+  if (store) store.windowMs = windowMs;
 
   return rateLimit({
     windowMs,
@@ -115,36 +108,3 @@ const createRateLimiter = (
     ...(store ? { store } : {}),
   });
 };
-
-/** Login: 5 requests per minute by default. */
-export const createLoginRateLimiter = (config: AuthServiceConfig): RateLimitRequestHandler =>
-  createRateLimiter(
-    config.rateLimitLoginMax,
-    config.rateLimitLoginWindowMs,
-    config.redisUrl,
-    'rl:auth:login'
-  );
-
-/** Register: 3 requests per hour by default. */
-export const createRegisterRateLimiter = (config: AuthServiceConfig): RateLimitRequestHandler =>
-  createRateLimiter(
-    config.rateLimitRegisterMax,
-    config.rateLimitRegisterWindowMs,
-    config.redisUrl,
-    'rl:auth:register'
-  );
-
-/** Refresh: 30 requests per minute by default. */
-export const createRefreshRateLimiter = (config: AuthServiceConfig): RateLimitRequestHandler =>
-  createRateLimiter(
-    config.rateLimitRefreshMax,
-    config.rateLimitRefreshWindowMs,
-    config.redisUrl,
-    'rl:auth:refresh'
-  );
-
-export const createAuthRateLimiters = (config: AuthServiceConfig) => ({
-  loginRateLimiter: createLoginRateLimiter(config),
-  registerRateLimiter: createRegisterRateLimiter(config),
-  refreshRateLimiter: createRefreshRateLimiter(config),
-});

@@ -180,6 +180,39 @@
       }]
     },
     {
+      "endpoint": "/api/auth/accounts",
+      "method": "GET",
+      "public": true,
+      "input_headers": ["*"],
+      "output_encoding": "no-op",
+      "backend": [{
+        "host": ["http://social-auth-service:3001"],
+        "url_pattern": "/api/auth/accounts"
+      }]
+    },
+    {
+      "endpoint": "/api/auth/accounts/add",
+      "method": "POST",
+      "public": true,
+      "input_headers": ["*"],
+      "output_encoding": "no-op",
+      "backend": [{
+        "host": ["http://social-auth-service:3001"],
+        "url_pattern": "/api/auth/accounts/add"
+      }]
+    },
+    {
+      "endpoint": "/api/auth/accounts/switch",
+      "method": "POST",
+      "public": true,
+      "input_headers": ["*"],
+      "output_encoding": "no-op",
+      "backend": [{
+        "host": ["http://social-auth-service:3001"],
+        "url_pattern": "/api/auth/accounts/switch"
+      }]
+    },
+    {
       "endpoint": "/api/users/me/followers",
       "method": "GET",
       "input_headers": ["Authorization", "Content-Type"],
@@ -633,6 +666,42 @@
       "backend": [{
         "host": ["http://social-message-service:3004"],
         "url_pattern": "/api/messages/send"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/forward",
+      "method": "POST",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/forward"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/bulk",
+      "method": "DELETE",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/bulk"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/{messageId}",
+      "method": "PATCH",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/{messageId}"
+      }]
+    },
+    {
+      "endpoint": "/api/messages/{messageId}",
+      "method": "DELETE",
+      "input_headers": ["Authorization", "Content-Type", "x-user-id", "x-user-role"],
+      "backend": [{
+        "host": ["http://social-message-service:3004"],
+        "url_pattern": "/api/messages/{messageId}"
       }]
     },
     {

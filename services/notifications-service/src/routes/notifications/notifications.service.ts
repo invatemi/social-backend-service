@@ -89,4 +89,13 @@ export class NotificationsService {
       },
     });
   }
+
+  /** Deletes notifications older than retentionDays (default 90). */
+  async pruneOldNotifications(retentionDays = 90): Promise<number> {
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    const result = await this.prisma.notification.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    return result.count;
+  }
 }

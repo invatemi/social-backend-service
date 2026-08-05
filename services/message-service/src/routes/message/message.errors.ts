@@ -22,6 +22,13 @@ export class ChatNotFoundError extends MessageError {
   }
 }
 
+export class MessageNotFoundError extends MessageError {
+  constructor(message = 'Message not found') {
+    super(message);
+    this.name = 'MessageNotFoundError';
+  }
+}
+
 export class MessageForbiddenError extends MessageError {
   constructor(message = 'Forbidden') {
     super(message);

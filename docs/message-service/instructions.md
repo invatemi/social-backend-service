@@ -42,15 +42,22 @@ npm run dev
 | GET | `/api/messages/chats/:chatId/upload-url` | JWT | presigned PUT для вложения |
 | GET | `/api/messages/chats/:chatId/attachments` | JWT | фото/файлы чата |
 | GET | `/api/messages/:chatId` | JWT | сообщения; обновляет `lastReadAt` |
-| POST | `/api/messages/send` | JWT | текст и/или вложения |
+| POST | `/api/messages/send` | JWT | текст и/или вложения; optional `replyToId` |
+| POST | `/api/messages/forward` | JWT | пересылка: `{ messageIds, targetChatIds }` |
+| PATCH | `/api/messages/:messageId` | JWT | edit своего: `{ content?, removeAttachmentIds?, attachments? }` |
+| DELETE | `/api/messages/:messageId` | JWT | удалить своё сообщение |
+| DELETE | `/api/messages/bulk` | JWT | bulk delete: `{ messageIds }` |
 
 ### Контракт фронта
 
 - Lists: `{ message, data, pagination: { limit, offset } }`
 - `POST /chats` и `POST /send` — **flat** body (`ChatData` / `MessageData`)
 - `MessageData.attachments[]` — всегда в ответах истории/send/realtime
+- `MessageData.replyTo` — preview исходного при `replyToId` (история/send/realtime)
 - Upload flow: `GET upload-url` → client `PUT` в MinIO → `POST /send` с `attachments: [{ url, fileName, mimeType, sizeBytes, objectKey }]`
 - `content` может быть пустым, если есть хотя бы одно вложение
+- Reply: `POST /send` с `replyToId` (сообщение должно быть в том же чате)
+- Edit: `PATCH /:messageId` с `content` и/или `removeAttachmentIds` и/или новыми `attachments` (тот же upload flow); итог должен иметь текст или ≥1 вложение; ставит `editedAt`
 
 ### Создание чата
 
@@ -61,6 +68,8 @@ Idempotent для DM: если пара участников уже есть —
 Публикация в `message.events` → consumers notifications → Socket.IO в **user rooms**:
 
 - `message:new` (включая `attachments`)
+- `message:updated`
+- `message:deleted` (`id`, `chatId`)
 - `chat:created` (`participantIds`)
 - `chat:deleted`
 

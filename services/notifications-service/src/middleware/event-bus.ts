@@ -36,6 +36,7 @@ export class EventBus {
   private connection: AmqpConnection | null = null;
   private channel: Channel | null = null;
   private subscriptions: StoredSubscription[] = [];
+  private consumerTags = new Map<string, string>();
   private reconnecting = false;
   private shuttingDown = false;
 
@@ -63,6 +64,7 @@ export class EventBus {
     console.log('[EventBus] Connection closed');
     this.connection = null;
     this.channel = null;
+    this.consumerTags.clear();
 
     if (!this.shuttingDown) {
       this.scheduleReconnect();
@@ -192,6 +194,16 @@ export class EventBus {
       throw new Error('RabbitMQ channel is not available');
     }
 
+    const existingTag = this.consumerTags.get(queueName);
+    if (existingTag) {
+      try {
+        await channel.cancel(existingTag);
+      } catch {
+        // channel may already be closed
+      }
+      this.consumerTags.delete(queueName);
+    }
+
     await channel.assertQueue(queueName, { durable: true });
 
     if (options) {
@@ -204,7 +216,7 @@ export class EventBus {
       );
     }
 
-    await channel.consume(
+    const { consumerTag } = await channel.consume(
       queueName,
       async (message) => {
         if (!message) {
@@ -224,6 +236,7 @@ export class EventBus {
       { noAck: false }
     );
 
+    this.consumerTags.set(queueName, consumerTag);
     console.log(`[EventBus] Subscribed to queue ${queueName}`);
   }
 

@@ -25,6 +25,7 @@
 |-------|--------------|----------------|
 | Access token | Память клиента (Redux) | `Authorization: Bearer <accessToken>` |
 | Refresh token | HttpOnly cookie `refreshToken` | Автоматически браузером на `/api/auth/*` |
+| Account session | HttpOnly cookie `accountSession` | Device vault для мультиаккаунтов (`/api/auth/accounts*`) |
 
 **Login / Register** (`200`):
 ```json
@@ -41,7 +42,9 @@
 ```
 + ротация refresh cookie в `Set-Cookie`
 
-**Logout** (`POST /api/auth/logout`): удаляет refresh из БД и очищает cookie.
+**Multi-account:** `POST /api/auth/accounts/add`, `GET /api/auth/accounts`, `POST /api/auth/accounts/switch`. После add выставляется cookie `accountSession`.
+
+**Logout** (`POST /api/auth/logout`): удаляет текущий аккаунт из vault; при оставшихся аккаунтах — auto-switch, иначе очищает cookies.
 
 **CORS (KrakenD):** `allow_credentials: true`, конкретные origins (не `*`), клиент использует `credentials: 'include'`.
 

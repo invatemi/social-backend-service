@@ -8,6 +8,8 @@ export { registerPostLikedConsumer } from './post-liked.consumer';
 export { registerUserEventConsumers } from './user-events.consumer';
 export {
   registerMessageCreatedConsumer,
+  registerMessageUpdatedConsumer,
+  registerMessageDeletedConsumer,
   registerChatCreatedConsumer,
   registerChatDeletedConsumer,
   registerChatReadConsumer,

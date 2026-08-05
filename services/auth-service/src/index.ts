@@ -15,6 +15,7 @@ import {
   createAuthRateLimiters,
 } from './middleware';
 import { authRoutes, internalRoutes } from './routes';
+import { AuthService } from './routes/auth/auth.service';
 
 loadEnv();
 const config = getConfig();
@@ -22,7 +23,9 @@ const config = getConfig();
 const database = new Database(config.databaseUrl);
 const app = express();
 const { port, host, serviceName } = config;
-const { loginRateLimiter, registerRateLimiter } = createAuthRateLimiters(config);
+const { loginRateLimiter, registerRateLimiter, refreshRateLimiter } =
+  createAuthRateLimiters(config);
+const REFRESH_TOKEN_CLEANUP_MS = 60 * 60 * 1000;
 
 app.set('trust proxy', config.trustProxyHops);
 
@@ -33,6 +36,7 @@ app.use(requestLogger);
 
 app.use('/api/auth/login', loginRateLimiter);
 app.use('/api/auth/register', registerRateLimiter);
+app.use('/api/auth/refresh', refreshRateLimiter);
 
 app.use('/api/auth', (req, _res, next) => {
   (req as any).prisma = database.prisma;
@@ -52,7 +56,29 @@ const server = app.listen(port, host, () => {
   console.log(`${serviceName} запущен на порту ${port}`);
 });
 
+const authCleanupService = new AuthService(database.prisma);
+const purgeExpiredTokens = () =>
+  authCleanupService
+    .purgeExpiredRefreshTokens()
+    .then((count) => {
+      if (count > 0) {
+        console.log(`[AuthService] Purged ${count} expired refresh token(s)`);
+      }
+    })
+    .catch((error) => {
+      console.log('[AuthService] Failed to purge expired refresh tokens:', error);
+    });
+
+void purgeExpiredTokens();
+const refreshCleanupTimer = setInterval(() => {
+  void purgeExpiredTokens();
+}, REFRESH_TOKEN_CLEANUP_MS);
+refreshCleanupTimer.unref?.();
+
 registerShutdown(server, [
+  async () => {
+    clearInterval(refreshCleanupTimer);
+  },
   () => eventBus.disconnect(),
   () => database.disconnect(),
 ]);

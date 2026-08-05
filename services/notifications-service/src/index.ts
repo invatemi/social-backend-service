@@ -23,11 +23,14 @@ import {
   registerPostLikedConsumer,
   registerUserEventConsumers,
   registerMessageCreatedConsumer,
+  registerMessageUpdatedConsumer,
+  registerMessageDeletedConsumer,
   registerChatCreatedConsumer,
   registerChatDeletedConsumer,
   registerChatReadConsumer,
 } from './consumers';
 import { notificationRoutes, initSocketHub } from './routes';
+import { NotificationsService } from './routes/notifications/notifications.service';
 
 loadEnv();
 const config = getConfig();
@@ -35,6 +38,7 @@ const config = getConfig();
 const database = new Database(config.databaseUrl);
 const app = express();
 const { port, host, serviceName } = config;
+const NOTIFICATION_PRUNE_MS = 6 * 60 * 60 * 1000;
 
 app.use(express.json());
 app.use(jsonErrorHandler);
@@ -63,6 +67,8 @@ const startConsumers = async (): Promise<void> => {
     registerPostLikedConsumer(),
     registerUserEventConsumers(database.prisma),
     registerMessageCreatedConsumer(),
+    registerMessageUpdatedConsumer(),
+    registerMessageDeletedConsumer(),
     registerChatCreatedConsumer(),
     registerChatDeletedConsumer(),
     registerChatReadConsumer(),
@@ -81,7 +87,29 @@ void startConsumers().catch((error) => {
   console.log('Не удалось запустить consumers:', error);
 });
 
+const notificationsPruneService = new NotificationsService(database.prisma);
+const pruneOldNotifications = () =>
+  notificationsPruneService
+    .pruneOldNotifications(90)
+    .then((count) => {
+      if (count > 0) {
+        console.log(`[Notifications] Pruned ${count} old notification(s)`);
+      }
+    })
+    .catch((error) => {
+      console.log('[Notifications] Failed to prune old notifications:', error);
+    });
+
+void pruneOldNotifications();
+const notificationPruneTimer = setInterval(() => {
+  void pruneOldNotifications();
+}, NOTIFICATION_PRUNE_MS);
+notificationPruneTimer.unref?.();
+
 registerShutdown(server, [
+  async () => {
+    clearInterval(notificationPruneTimer);
+  },
   () => eventBus.disconnect(),
   () => database.disconnect(),
 ]);
